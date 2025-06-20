@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import { User, AuthContextType } from '../types';
+const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -16,7 +17,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const login = async (username: string, password: string) => {
         try {
-            const response = await axios.post('http://localhost:5000/api/auth/login', {
+            const response = await axios.post(`${baseUrl}/api/auth/login`, {
                 username,
                 password
             });
@@ -39,7 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const checkAuth = async () => {
         try {
-            const response = await axios.get('http://localhost:5000/api/auth/check-auth', {
+            const response = await axios.get(`${baseUrl}/api/auth/check-auth`, {
                 headers: {
                     Authorization: `Bearer ${token}`
                 }

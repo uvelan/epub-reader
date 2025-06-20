@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button, Form, Card, ListGroup, Alert, Spinner } from 'react-bootstrap';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
 interface Chapter {
     id: string;
@@ -42,7 +43,7 @@ const FileUpload: React.FC = () => {
             const formData = new FormData();
             formData.append('epub', selectedFile);
 
-            const response = await axios.post('http://localhost:5000/api/epub', formData, {
+            const response = await axios.post(`${baseUrl}/api/epub`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                     Authorization: `Bearer ${token}`

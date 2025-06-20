@@ -7,6 +7,7 @@ import PlayersControl from "./PlayersControl";
 import VoiceSelector from "./VoiceSelector";
 import ChapterContent from "./ChapterContent";
 import { TextToSpeech } from "../utils/TextToSpeech";
+const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
 const color1 = "#f5f1e9";
 
@@ -36,7 +37,7 @@ const ReaderMain: React.FC = () => {
         const fetchChapters = async () => {
             try {
                 setLoading(true);
-                const res = await axios.get("http://localhost:5000/epub/"+id);
+                const res = await axios.get(`${baseUrl}/epub/${id}`);
                 const sortedChapters = res.data.sort((a: any, b: any) => a.id - b.id);
                 setItems(sortedChapters);
             } catch (err) {

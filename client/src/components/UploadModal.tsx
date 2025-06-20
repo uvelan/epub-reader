@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Modal, Button, Form, Spinner } from "react-bootstrap";
 import axios from "axios";
+const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
 interface UploadModalProps {
     show: boolean;
@@ -33,7 +34,7 @@ const UploadModal: React.FC<UploadModalProps> = ({ show, onHide, onSuccess }) =>
             setUploading(true);
             setError("");
 
-            const res = await axios.post("http://localhost:5000/api/upload", formData, {
+            const res = await axios.post(`${baseUrl}/api/upload`, formData, {
                 headers: {
                     "Content-Type": "multipart/form-data",
                 },

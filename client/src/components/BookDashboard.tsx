@@ -13,6 +13,7 @@ import {
     Pagination,
 } from 'react-bootstrap';
 import BookCard from './BookCard'; // 👈 Import here
+const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
 type Book = {
     id: string;
@@ -32,7 +33,7 @@ const BookDashboard: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [showUploadModal, setShowUploadModal] = useState(false);
     useEffect(() => {
-        fetch("http://localhost:5000/epub")
+        fetch(`${baseUrl}/epub`)
             .then((res) => res.json())
             .then((data) => setBooks(data))
             .catch(console.error);
@@ -42,7 +43,7 @@ const BookDashboard: React.FC = () => {
         if (!confirmDelete) return;
 
         try {
-            const res = await fetch(`http://localhost:5000/epub/${id}`, {
+            const res = await fetch(`${baseUrl}/epub/${id}`, {
                 method: "DELETE",
             });
             if (res.ok) {
