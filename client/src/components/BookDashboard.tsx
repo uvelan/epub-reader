@@ -1,6 +1,6 @@
 import React, {useState, useMemo, useEffect} from 'react';
 import UploadModal from './UploadModal';
-
+import { useNavigate } from "react-router-dom";
 import bookCover from '../assets/0.jpg'
 
 import {
@@ -12,7 +12,7 @@ import {
     InputGroup,
     Pagination,
 } from 'react-bootstrap';
-import BookCard from './BookCard'; // 👈 Import here
+import BookCard from './BookCard';
 const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
 type Book = {
@@ -32,6 +32,10 @@ const BookDashboard: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const navigate = useNavigate();
+    const handleOnSuccess = () => {
+        navigate(`/`);
+    };
     useEffect(() => {
         fetch(`${baseUrl}/epub`)
             .then((res) => res.json())
@@ -134,9 +138,7 @@ const BookDashboard: React.FC = () => {
             <UploadModal
                 show={showUploadModal}
                 onHide={() => setShowUploadModal(false)}
-                onSuccess={() => {
-                    window.location.reload(); // or refetchChapters()
-                }}
+                onSuccess={handleOnSuccess}
             />
             </>
     );
