@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 
 const chapterContentStyle: React.CSSProperties = {
-    width: '95vw',
-    height: '70vh',
+    height: '75vh',
     backgroundColor: '#f5f1e9',
     color: '#5b4636',
     border: '1px solid #b7a88e',

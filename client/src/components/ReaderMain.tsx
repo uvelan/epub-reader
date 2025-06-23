@@ -174,8 +174,16 @@ const ReaderMain: React.FC = () => {
     }
 
     return (
-        <Container className="d-flex justify-content-center align-items-center" style={{ backgroundColor: color1, minWidth: "100vw", minHeight: "100vh", boxShadow: "0 4px 10px rgba(0,0,0,0.1)" }}>
-            <ChapterList
+        <Container
+            fluid // ensures full-width
+            className="d-flex flex-column p-0 m-0"
+            style={{
+                flexGrow: 1,
+                height: "100%",
+                width: "100vw",
+                backgroundColor: color1,
+            }}
+        >            <ChapterList
                 items={items}
                 onSelect={setSelectedItem}
                 collapsed={collapsed} // renamed logic: collapsed === false means shown
@@ -183,7 +191,6 @@ const ReaderMain: React.FC = () => {
                 selectedId={selectedItem}
             />
 
-            <Container className="ms-3 d-flex flex-column" style={{ flexGrow: 1, height: "100%", width: "80vw" }}>
                 <PlayersControl
                     selectedId={selectedItem}
                     totalChapters={items.length}
@@ -202,7 +209,6 @@ const ReaderMain: React.FC = () => {
                 />
                 <VoiceSelector voices={voices} selectedVoice={selectedVoice} onChangeVoice={onVoiceChange} />
                 <ChapterContent text={items[selectedItem]?.content || []} highlightIndex={sentenceIndex} playerStatus={playerStatus} />
-            </Container>
         </Container>
     );
 };

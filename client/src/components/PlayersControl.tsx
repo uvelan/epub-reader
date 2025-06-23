@@ -28,6 +28,7 @@ const buttonStyle: React.CSSProperties = {
     fontWeight: 'bold',
     boxShadow: '0 2px 4px rgba(0,0,0,.15)',
     userSelect: 'none',
+    flexShrink: 0
 };
 
 interface PlayersControlProps {
@@ -78,7 +79,7 @@ const PlayersControl: React.FC<PlayersControlProps> = ({
     };
 
     return (
-        <Container style={playersStyle}>
+        <Container fluid  style={playersStyle}>
             <Button style={buttonStyle} onClick={onToggleChapters}>
                 <i className="bi bi-list" /> Chapters
             </Button>
