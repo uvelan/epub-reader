@@ -39,11 +39,15 @@ const ChapterList: React.FC<ChapterListProps> = ({
     );
 
     useEffect(() => {
-        const ref = itemRefs.current[selectedId];
-        if (ref) {
-            ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!collapsed) {
+            const ref = itemRefs.current[selectedId];
+            if (ref) {
+                setTimeout(() => {
+                    ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100); // Delay to allow Offcanvas DOM to render
+            }
         }
-    }, [selectedId]);
+    }, [collapsed, selectedId]);
 
     return (
         <>
