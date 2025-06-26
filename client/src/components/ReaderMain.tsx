@@ -49,11 +49,6 @@ const ReaderMain: React.FC = () => {
     const [playing, setPlaying] = useState(false);
     useNativeWakeLock(playing);
 
-    useEffect(() => {
-        if(id) {
-            saveProgress(id, selectedItem, sentenceIndex);
-        }
-    }, [playerStatus]);
 
     // Fetch EPUB Chapters
     useEffect(() => {
@@ -149,7 +144,9 @@ const ReaderMain: React.FC = () => {
         } else {
             setPlaying(true)
             setPlayerStatus(1);
-            setSentenceIndex(0);
+        }
+        if(id) {
+            saveProgress(id, selectedItem, sentenceIndex);
         }
     };
 
