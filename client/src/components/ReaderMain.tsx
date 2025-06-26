@@ -153,22 +153,36 @@ const ReaderMain: React.FC = () => {
     const onStop = () => {
         setPlaying(false)
         ttsRef.current.stop();
+        if(id) {
+            saveProgress(id, selectedItem, sentenceIndex);
+        }
         setPlayerStatus(0);
-        setSentenceIndex(0);
     };
 
     const onNext = () => {
         if (selectedItem < items.length - 1) {
             setSelectedItem((prev) => prev + 1);
-            speak();
+            setSentenceIndex(0);
+            if(playerStatus === 1) {
+                speak();
+            }
         }
     };
 
     const onPrevious = () => {
         if (selectedItem > 0) {
             setSelectedItem((prev) => prev - 1);
+            setSentenceIndex(0);
+            if(playerStatus === 1) {
+                speak();
+            }
         }
     };
+
+    const onChapterSelect = (selectId:number)=>{
+        setSelectedItem(selectId);
+        setSentenceIndex(0);
+    }
 
     const onForward = () => {
         if (sentenceIndex < items[selectedItem].content.length - 1) {
@@ -210,7 +224,7 @@ const ReaderMain: React.FC = () => {
             }}
         >            <ChapterList
                 items={items}
-                onSelect={setSelectedItem}
+                onSelect={onChapterSelect}
                 collapsed={collapsed} // renamed logic: collapsed === false means shown
                 toggleCollapse={toggleCollapse}
                 selectedId={selectedItem}
