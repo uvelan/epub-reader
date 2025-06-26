@@ -60,6 +60,7 @@ const BookDashboard: React.FC = () => {
     const booksPerPage = 9;
 
     const filteredBooks = useMemo(() => {
+        if (!Array.isArray(books)) return [];
         return books.filter(
             (book) =>
                 book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||

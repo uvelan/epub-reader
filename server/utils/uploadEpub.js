@@ -1,34 +1,41 @@
-// uploadEpub.js
-const fs = require("fs");
-const path = require("path");
-const db = require("../database/db");
-const { processEpub } = require("./epubProcessorEpub");
-
+// uploadEpub.js  – Postgres-ready version
+const fs = require('fs').promises;
+const path = require('path');
+const crypto = require('crypto');
+const { sql } = require('../database/db');
+const { processEpub } = require('./epubProcessorEpub');
 /**
- * Handles saving EPUB to SQLite after parsing
- * @param {string} filePath - Temp path of uploaded file
- * @returns {Promise<string>} - Book ID saved
+ * Parse an uploaded EPUB and store it in Postgres.
+ * @param {string} filePath – absolute path of the temporary upload
+ * @returns {Promise<string>} – the book’s UUID
  */
-const handleUploadEpub = async (filePath) => {
-    const bookId = path.basename(filePath, path.extname(filePath));
+const handleUploadEpub = async (filePath) => {    const tmpName = path.basename(filePath, path.extname(filePath)); // e.g. upload_123.epub → upload_123
 
     try {
-        const book = await processEpub(filePath);
-        const timestampId = Date.now().toString();
-        await new Promise((resolve, reject) => {
-            db.run(
-                `INSERT OR REPLACE INTO books (id, title, cover, content, description) VALUES (?, ?, ?, ?,?)`,
-                [timestampId, book.title, book.cover, JSON.stringify(book.chapters), book.description],
-                (err) => (err ? reject(err) : resolve())
-            );
-        });
+        // 1 — Extract metadata & chapters
+        const { title, cover, chapters, description } = await processEpub(filePath);
+        const id = title.trim().replace(/\s+/g, '_');
 
-        fs.unlinkSync(filePath); // Clean up temp file
-        return bookId;
+        // 2 — UPSERT into Postgres (content stored as JSONB)
+        await sql`
+      INSERT INTO books (id, title, cover, content, description)
+      VALUES (
+        ${id},
+        ${title},
+        ${cover},
+        ${JSON.stringify(chapters)},
+        ${description}
+      )
+      ON CONFLICT (id) DO UPDATE
+        SET title       = EXCLUDED.title,
+            cover       = EXCLUDED.cover,
+            description = EXCLUDED.description;
+    `;
+        await fs.unlink(filePath);
+        return id;
     } catch (err) {
-        fs.unlinkSync(filePath); // Always cleanup
+        await fs.unlink(filePath).catch(() => {}); // ensure file is removed even on failure
         throw err;
     }
 };
-
 module.exports = { handleUploadEpub };

@@ -19,6 +19,20 @@ interface Item {
     contentHtml: string;
 }
 
+async function saveProgress(bookId: string, chapterId: number, sentenceId: number) {
+    try {
+        const res =  await axios.post(`${baseUrl}/epub/${bookId}/progress`, {
+            chapterId,
+            sentenceId,
+        });
+
+        console.log('Progress saved:', res.data);
+        return res.data;
+    } catch (err) {
+        console.error('Failed to save progress:', err);
+    }
+}
+
 const ReaderMain: React.FC = () => {
     const [items, setItems] = useState<Item[]>([]);
     const [selectedItem, setSelectedItem] = useState(0);
@@ -37,8 +51,10 @@ const ReaderMain: React.FC = () => {
         const fetchChapters = async () => {
             try {
                 setLoading(true);
-                const res = await axios.get(`${baseUrl}/epub/${id}`);
-                const sortedChapters = res.data.sort((a: any, b: any) => a.id - b.id);
+                    const res = await axios.get(`${baseUrl}/epub/${id}`);
+                const sortedChapters = res.data.content.sort((a: any, b: any) => a.id - b.id);
+                setSelectedItem(res.data.chapterid);
+                setSentenceIndex(res.data.sentenceid);
                 setItems(sortedChapters);
             } catch (err) {
                 console.error("Failed to fetch EPUB:", err);
@@ -128,6 +144,9 @@ const ReaderMain: React.FC = () => {
 
     const onStop = () => {
         ttsRef.current.stop();
+        if(id) {
+            saveProgress(id, selectedItem, sentenceIndex);
+        }
         setPlayerStatus(0);
         setSentenceIndex(0);
     };
