@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, {useState, useRef, useLayoutEffect} from 'react';
 import {
     ListGroup,
     FormControl,
@@ -38,14 +38,12 @@ const ChapterList: React.FC<ChapterListProps> = ({
         item.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!collapsed) {
-            const ref = itemRefs.current[selectedId];
-            if (ref) {
-                setTimeout(() => {
-                    ref.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 100); // Delay to allow Offcanvas DOM to render
-            }
+            itemRefs.current[selectedId]?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+            });
         }
     }, [collapsed, selectedId]);
 
@@ -60,6 +58,10 @@ const ChapterList: React.FC<ChapterListProps> = ({
                 backdrop={false}
                 placement="start"
                 style={{ backgroundColor: color2 }}
+                onEntered={() => {
+                    const el = itemRefs.current[selectedId];
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
             >
                 <Offcanvas.Header closeButton>
                     <Offcanvas.Title>Chapters</Offcanvas.Title>

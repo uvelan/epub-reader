@@ -7,6 +7,7 @@ import PlayersControl from "./PlayersControl";
 import VoiceSelector from "./VoiceSelector";
 import ChapterContent from "./ChapterContent";
 import { TextToSpeech } from "../utils/TextToSpeech";
+import { useNativeWakeLock } from "../hooks/useNativeWakeLock"
 const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
 const color1 = "#f5f1e9";
@@ -45,6 +46,14 @@ const ReaderMain: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const ttsRef = useRef(new TextToSpeech());
     const { id } = useParams();
+    const [playing, setPlaying] = useState(false);
+    useNativeWakeLock(playing);
+
+    useEffect(() => {
+        if(id) {
+            saveProgress(id, selectedItem, sentenceIndex);
+        }
+    }, [playerStatus]);
 
     // Fetch EPUB Chapters
     useEffect(() => {
@@ -134,19 +143,19 @@ const ReaderMain: React.FC = () => {
             setPlayerStatus(2);
             ttsRef.current.pause();
         } else if (playerStatus === 2) {
+            setPlaying(true);
             setPlayerStatus(1);
             ttsRef.current.resume();
         } else {
+            setPlaying(true)
             setPlayerStatus(1);
             setSentenceIndex(0);
         }
     };
 
     const onStop = () => {
+        setPlaying(false)
         ttsRef.current.stop();
-        if(id) {
-            saveProgress(id, selectedItem, sentenceIndex);
-        }
         setPlayerStatus(0);
         setSentenceIndex(0);
     };
