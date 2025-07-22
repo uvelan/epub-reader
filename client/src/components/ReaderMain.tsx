@@ -271,7 +271,7 @@ const ReaderMain: React.FC = () => {
                     onSpeedChange={onSpeedChange}
                     onToggleChapters={toggleCollapse}
                 />
-                <VoiceSelector voices={voices} selectedVoice={selectedVoice} onChangeVoice={onVoiceChange} />
+                <VoiceSelector voices={voices} selectedVoice={selectedVoice} onChangeVoice={onVoiceChange} selectedChapter={items[selectedItem].name}/>
                 <ChapterContent text={items[selectedItem]?.content || []} highlightIndex={sentenceIndex} playerStatus={playerStatus} />
         </Container>
     );

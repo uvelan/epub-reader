@@ -4,6 +4,7 @@ interface VoiceSelectorProps {
     voices: SpeechSynthesisVoice[];
     selectedVoice: string;
     onChangeVoice: (voiceURI: string) => void;
+    selectedChapter?: string;
 }
 
 const voiceSelectorStyle: React.CSSProperties = {
@@ -18,16 +19,19 @@ const voiceSelectorStyle: React.CSSProperties = {
     boxShadow: 'inset 0 1px 3px rgba(0,0,0,.2)',
     gap: '10px',
     padding: '10px',
+    alignContent:'space-between'
 };
 
 const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                                                          voices,
                                                          selectedVoice,
                                                          onChangeVoice,
+                                                         selectedChapter
                                                      }) => {
     const sortedVoices = [...voices].sort((a, b) => a.name.localeCompare(b.name));
 
     return (
+        <>
         <div style={voiceSelectorStyle}>
             <label htmlFor="voiceSelect" style={{ marginRight: 10 }}>
                 Select Voice:
@@ -57,7 +61,11 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                     </option>
                 ))}
             </select>
+            <span className="d-none d-md-inline font-weight-semibold">
+                {selectedChapter}
+            </span>
         </div>
+       </>
     );
 };
 
