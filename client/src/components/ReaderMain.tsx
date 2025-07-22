@@ -8,6 +8,8 @@ import VoiceSelector from "./VoiceSelector";
 import ChapterContent from "./ChapterContent";
 import { TextToSpeech } from "../utils/TextToSpeech";
 import { useNativeWakeLock } from "../hooks/useNativeWakeLock"
+import { set, get } from 'idb-keyval';
+
 const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
 const color1 = "#f5f1e9";
@@ -48,18 +50,41 @@ const ReaderMain: React.FC = () => {
     const { id } = useParams();
     const [playing, setPlaying] = useState(false);
     useNativeWakeLock(playing);
+    useEffect(() => {
+        if (id && selectedItem !== 0) {
+            localStorage.setItem(`reader-${id}-selectedItem`, selectedItem.toString());
+            localStorage.setItem(`reader-${id}-sentenceIndex`, '0');
 
+        }
+    }, [selectedItem, id]);
+
+    useEffect(() => {
+        if (id && sentenceIndex !== 0) {
+            localStorage.setItem(`reader-${id}-sentenceIndex`, sentenceIndex.toString());
+        }
+    }, [sentenceIndex, id]);
 
     // Fetch EPUB Chapters
     useEffect(() => {
         const fetchChapters = async () => {
             try {
                 setLoading(true);
+                let chapters: Item[] = [];
+                const storedContent = await get(`reader-${id}-content`);
+                if (storedContent) {
+                    chapters = storedContent;
+                    setSelectedItem( parseInt(localStorage.getItem(`reader-${id}-selectedItem`) || '', 10));
+                    setSentenceIndex(parseInt(localStorage.getItem(`reader-${id}-sentenceIndex`) || '', 10));
+                } else {
                     const res = await axios.get(`${baseUrl}/epub/${id}`);
-                const sortedChapters = res.data.content.sort((a: any, b: any) => a.id - b.id);
-                setSelectedItem(res.data.chapterid);
-                setSentenceIndex(res.data.sentenceid);
-                setItems(sortedChapters);
+                    chapters = res.data.content.sort((a: any, b: any) => a.id - b.id);
+                    localStorage.setItem(`reader-${id}-selectedItem`, res.data.chapterid.toString());
+                    localStorage.setItem(`reader-${id}-sentenceIndex`, res.data.sentenceid.toString());
+                    setSelectedItem(res.data.chapterid);
+                    setSentenceIndex(res.data.sentenceid);
+                    await set(`reader-${id}-content`, chapters);
+                }
+                setItems(chapters);
             } catch (err) {
                 console.error("Failed to fetch EPUB:", err);
             } finally {
