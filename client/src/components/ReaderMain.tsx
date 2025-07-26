@@ -49,6 +49,9 @@ const ReaderMain: React.FC = () => {
     const ttsRef = useRef(new TextToSpeech());
     const { id } = useParams();
     const [playing, setPlaying] = useState(false);
+    const [updateTrigger, setUpdateTrigger] = useState<number>(0); // Change this value to force update
+
+
     useNativeWakeLock(playing);
     useEffect(() => {
         if (id && selectedItem !== 0) {
@@ -225,6 +228,9 @@ const ReaderMain: React.FC = () => {
         ttsRef.current.setRate(val);
         setSpeed(val);
     };
+    const handlePopupSubmit = () => {
+        setUpdateTrigger(prev => prev + 1);
+    };
 
     if (loading) {
         return (
@@ -271,8 +277,8 @@ const ReaderMain: React.FC = () => {
                     onSpeedChange={onSpeedChange}
                     onToggleChapters={toggleCollapse}
                 />
-                <VoiceSelector voices={voices} selectedVoice={selectedVoice} onChangeVoice={onVoiceChange} selectedChapter={items[selectedItem].name}/>
-                <ChapterContent text={items[selectedItem]?.content || []} highlightIndex={sentenceIndex} playerStatus={playerStatus} />
+                <VoiceSelector id={id || ''} voices={voices} selectedVoice={selectedVoice} onChangeVoice={onVoiceChange} selectedChapter={items[selectedItem].name} handlePopupSubmit={handlePopupSubmit} />
+                <ChapterContent id={id || ''} text={items[selectedItem]?.content || []} highlightIndex={sentenceIndex} playerStatus={playerStatus} updateTrigger={updateTrigger} />
         </Container>
     );
 };

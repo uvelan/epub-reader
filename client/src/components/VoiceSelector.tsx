@@ -1,10 +1,13 @@
 import React from "react";
+import PopupMapForm from "./PopupMapForm";
 
 interface VoiceSelectorProps {
+    id: string;
     voices: SpeechSynthesisVoice[];
     selectedVoice: string;
     onChangeVoice: (voiceURI: string) => void;
     selectedChapter?: string;
+    handlePopupSubmit?: () => void;
 }
 
 const voiceSelectorStyle: React.CSSProperties = {
@@ -26,7 +29,9 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                                                          voices,
                                                          selectedVoice,
                                                          onChangeVoice,
-                                                         selectedChapter
+                                                         selectedChapter,
+                                                            id,
+                                                         handlePopupSubmit
                                                      }) => {
     const sortedVoices = [...voices].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -64,6 +69,7 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
             <span className="d-none d-md-inline font-weight-semibold">
                 {selectedChapter}
             </span>
+            <PopupMapForm id={id} onSubmit={handlePopupSubmit} />
         </div>
        </>
     );
