@@ -7,8 +7,8 @@ import PlayersControl from "./PlayersControl";
 import VoiceSelector from "./VoiceSelector";
 import ChapterContent from "./ChapterContent";
 import { TextToSpeech } from "../utils/TextToSpeech";
-import { useNativeWakeLock } from "../hooks/useNativeWakeLock"
 import { set, get } from 'idb-keyval';
+import {processTextWithReplacements} from "../utils/WordReplacement";
 
 const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
@@ -48,11 +48,9 @@ const ReaderMain: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const ttsRef = useRef(new TextToSpeech());
     const { id } = useParams();
-    const [playing, setPlaying] = useState(false);
     const [updateTrigger, setUpdateTrigger] = useState<number>(0); // Change this value to force update
+    const [content, setContent] = useState<string[]>([]);
 
-
-    useNativeWakeLock(playing);
     useEffect(() => {
         if (id && selectedItem !== 0) {
             localStorage.setItem(`reader-${id}-selectedItem`, selectedItem.toString());
@@ -119,7 +117,11 @@ const ReaderMain: React.FC = () => {
     // Reset sentence index when chapter changes
     useEffect(() => {
         setSentenceIndex(0);
-    }, [selectedItem]);
+    }, [selectedItem]);    // Reset sentence index when chapter changes
+
+    useEffect(() => {
+        setContent(processTextWithReplacements(id || '',items[selectedItem]?.content));
+    }, [selectedItem,updateTrigger]);
 
     // Speak when sentence index changes
     useEffect(() => {
@@ -132,11 +134,11 @@ const ReaderMain: React.FC = () => {
     useEffect(() => {
         ttsRef.current.setRate(speed);
         ttsRef.current.onEnd = () => {
-            if (playerStatus === 1 && sentenceIndex < items[selectedItem]?.content?.length - 1) {
+            if (playerStatus === 1 && sentenceIndex < content.length - 1) {
                 setSentenceIndex((prev) => prev + 1);
                 return
             }
-            if (playerStatus ===1 && sentenceIndex === items[selectedItem].content?.length - 1) {
+            if (playerStatus ===1 && sentenceIndex === content.length - 1) {
                 onNext();
             }
         };
@@ -150,7 +152,7 @@ const ReaderMain: React.FC = () => {
     };
 
     const speak = () => {
-        const currentSentence = items[selectedItem]?.content?.[sentenceIndex];
+        const currentSentence = content?.[sentenceIndex];
         if (!currentSentence) return;
 
         if (ttsRef.current.isPaused()) {
@@ -166,11 +168,9 @@ const ReaderMain: React.FC = () => {
             setPlayerStatus(2);
             ttsRef.current.pause();
         } else if (playerStatus === 2) {
-            setPlaying(true);
             setPlayerStatus(1);
             ttsRef.current.resume();
         } else {
-            setPlaying(true)
             setPlayerStatus(1);
         }
         if(id) {
@@ -179,7 +179,6 @@ const ReaderMain: React.FC = () => {
     };
 
     const onStop = () => {
-        setPlaying(false)
         ttsRef.current.stop();
         if(id) {
             saveProgress(id, selectedItem, sentenceIndex);
@@ -266,7 +265,7 @@ const ReaderMain: React.FC = () => {
                     totalChapters={items.length}
                     playerStatus={playerStatus}
                     sentenceIndex={sentenceIndex}
-                    sentenceCount={items[selectedItem]?.content.length || 0}
+                    sentenceCount={content?.length || 0}
                     speed={speed}
                     onPlayPause={onPlayPause}
                     onStop={onStop}
@@ -278,7 +277,7 @@ const ReaderMain: React.FC = () => {
                     onToggleChapters={toggleCollapse}
                 />
                 <VoiceSelector id={id || ''} voices={voices} selectedVoice={selectedVoice} onChangeVoice={onVoiceChange} selectedChapter={items[selectedItem].name} handlePopupSubmit={handlePopupSubmit} />
-                <ChapterContent id={id || ''} text={items[selectedItem]?.content || []} highlightIndex={sentenceIndex} playerStatus={playerStatus} updateTrigger={updateTrigger} />
+                <ChapterContent text={content || []} highlightIndex={sentenceIndex} playerStatus={playerStatus} />
         </Container>
     );
 };

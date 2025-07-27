@@ -20,3 +20,13 @@ export interface AuthContextType {
     logout: () => void;
     checkAuth: () => Promise<boolean>;
 }
+
+export interface ReplacementRule {
+    key: string;
+    value: string;
+}
+
+export interface StoredData {
+    mapList: ReplacementRule[];
+    regexMode: boolean;
+}

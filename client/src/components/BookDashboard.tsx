@@ -1,7 +1,7 @@
 import React, {useState, useMemo, useEffect} from 'react';
 import UploadModal from './UploadModal';
 import { useNavigate } from "react-router-dom";
-import bookCover from '../assets/0.jpg'
+import { saveBooksToDB, getBooksFromDB, clearBooksFromDB } from '../utils/db';
 
 import {
     Container,
@@ -37,10 +37,23 @@ const BookDashboard: React.FC = () => {
         navigate(`/`);
     };
     useEffect(() => {
-        fetch(`${baseUrl}/epub`)
-            .then((res) => res.json())
-            .then((data) => setBooks(data))
-            .catch(console.error);
+        const loadBooks = async () => {
+            const cached = await getBooksFromDB();
+            if (cached.length > 0) {
+                setBooks(cached);
+            }
+
+            try {
+                const res = await fetch(`${baseUrl}/epub`);
+                const data = await res.json();
+                setBooks(data);
+                await saveBooksToDB(data);
+            } catch (err) {
+                console.error("Failed to fetch from server", err);
+            }
+        };
+
+        loadBooks();
     }, []);
     const handleDelete = async (id: string) => {
         const confirmDelete = window.confirm("Are you sure you want to delete this book?");
@@ -85,10 +98,20 @@ const BookDashboard: React.FC = () => {
                 <Col xs={12} md={6}>
                     <h2 className="mb-0">Book Dashboard</h2>
                 </Col>
-                <Col xs={12} md={6} className="d-flex justify-content-md-end mt-2 mt-md-0">
+                <Col xs={12} md={6} className="d-flex justify-content-md-end gap-2 mt-2 mt-md-0">
                     <Button onClick={() => setShowUploadModal(true)}>Add Book</Button>
+                    <Button
+                        variant="outline-danger"
+                        onClick={async () => {
+                            await clearBooksFromDB();
+                            alert("Cache cleared!");
+                        }}
+                    >
+                        Clear Cache
+                    </Button>
                 </Col>
             </Row>
+
 
             <Row className="mb-3">
                 <Col md={6}>

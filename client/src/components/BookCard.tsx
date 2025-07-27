@@ -1,6 +1,7 @@
 import React from "react";
 import { Card, Button, OverlayTrigger, Tooltip } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
+import bookCover from '../assets/0.jpg'
 
 interface Book {
     id: string;
@@ -25,7 +26,7 @@ const BookCard: React.FC<BookCardProps> = ({ book, onDelete }) => {
         <Card className="h-100">
             <Card.Img
                 variant="top"
-                src={book.cover || "/placeholder.jpg"}
+                src={book.cover || bookCover}
                 alt={book.title}
                 style={{ objectFit: "cover", height: "200px" }}
             />
