@@ -13,7 +13,6 @@ interface Item {
     name: string;
     path: string;
     content: string[];
-    contentHtml: string;
 }
 
 interface ChapterListProps {

@@ -30,3 +30,13 @@ export interface StoredData {
     mapList: ReplacementRule[];
     regexMode: boolean;
 }
+
+export interface Book {
+    id: string;
+    title: string;
+    text: string;
+    cover: string;
+    link: string;
+    author: string;
+    description: string;
+}

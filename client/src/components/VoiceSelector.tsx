@@ -8,7 +8,22 @@ interface VoiceSelectorProps {
     onChangeVoice: (voiceURI: string) => void;
     selectedChapter?: string;
     handlePopupSubmit?: () => void;
+    onDeleteContent?: () => void;
 }
+
+const buttonStyle: React.CSSProperties = {
+    backgroundColor: '#b59f63',
+    border: 'none',
+    borderRadius: '4px',
+    padding: '6px 12px',
+    color: '#3a2d0b',
+    cursor: 'pointer',
+    fontWeight: 'bold',
+    boxShadow: '0 2px 4px rgba(0,0,0,.15)',
+    userSelect: 'none',
+    flexShrink: 0
+};
+
 
 const voiceSelectorStyle: React.CSSProperties = {
     display: 'flex',
@@ -31,7 +46,8 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                                                          onChangeVoice,
                                                          selectedChapter,
                                                             id,
-                                                         handlePopupSubmit
+                                                         handlePopupSubmit,
+                                                         onDeleteContent,
                                                      }) => {
     const sortedVoices = [...voices].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -70,6 +86,13 @@ const VoiceSelector: React.FC<VoiceSelectorProps> = ({
                 {selectedChapter}
             </span>
             <PopupMapForm id={id} onSubmit={handlePopupSubmit} />
+            <button
+                type="button"
+                style={buttonStyle}
+                onClick={onDeleteContent}
+            >
+                Delete Chapter Cache
+            </button>
         </div>
        </>
     );

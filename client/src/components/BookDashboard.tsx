@@ -13,18 +13,8 @@ import {
     Pagination,
 } from 'react-bootstrap';
 import BookCard from './BookCard';
+import {Book} from "../types";
 const baseUrl = process.env.REACT_APP_API_BASE_URL;
-
-type Book = {
-    id: string;
-    title: string;
-    text: string;
-    cover: string;
-    link: string;
-    author: string;
-};
-
-
 
 
 const BookDashboard: React.FC = () => {

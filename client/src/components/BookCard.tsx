@@ -2,15 +2,7 @@ import React from "react";
 import { Card, Button, OverlayTrigger, Tooltip } from "react-bootstrap";
 import { useNavigate } from "react-router-dom";
 import bookCover from '../assets/0.jpg'
-
-interface Book {
-    id: string;
-    title: string;
-    text: string;
-    cover: string;
-    link: string;
-    author: string;
-}
+import {Book} from "../types";
 
 interface BookCardProps {
     book: Book;
@@ -25,10 +17,10 @@ const BookCard: React.FC<BookCardProps> = ({ book, onDelete }) => {
     return (
         <Card className="h-100">
             <Card.Img
-                variant="top"
+                variant="card-img-top"
                 src={book.cover || bookCover}
                 alt={book.title}
-                style={{ objectFit: "cover", height: "200px" }}
+                style={{ objectFit: "fill", height: "200px" }}
             />
             <Card.Body>
                 <OverlayTrigger
@@ -48,7 +40,7 @@ const BookCard: React.FC<BookCardProps> = ({ book, onDelete }) => {
 
                 </OverlayTrigger>
 
-                <Card.Text>{book.author}</Card.Text>
+                <Card.Text>{book.description}</Card.Text>
 
                 <div className="d-flex justify-content-between">
                     <Button variant="primary" onClick={handleRead}>
