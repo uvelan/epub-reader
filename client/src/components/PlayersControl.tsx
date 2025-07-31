@@ -35,8 +35,6 @@ interface PlayersControlProps {
     selectedId: number;
     totalChapters: number;
     playerStatus: 0 | 1 | 2;
-    sentenceIndex: number;
-    sentenceCount: number;
     speed: number;
     onPlayPause: () => void;
     onStop: () => void;
@@ -61,8 +59,6 @@ const PlayersControl: React.FC<PlayersControlProps> = ({
                                                            selectedId,
                                                            totalChapters,
                                                            playerStatus,
-                                                           sentenceIndex,
-                                                           sentenceCount,
                                                            speed,
                                                            onPlayPause,
                                                            onStop,
@@ -79,52 +75,56 @@ const PlayersControl: React.FC<PlayersControlProps> = ({
     };
 
     return (
-        <Container fluid  style={playersStyle}>
-            <Button style={buttonStyle} onClick={onToggleChapters}>
-                <i className="bi bi-list" /> Chapters
+        <Container fluid style={playersStyle}>
+
+            <Button style={buttonStyle} onClick={onToggleChapters} aria-label="Toggle Chapters">
+                <i className="bi bi-list" /> <span className="d-none d-sm-inline">Chapters</span>
             </Button>
+
             <Button
                 style={{ ...buttonStyle, opacity: selectedId === 0 ? 0.5 : 1 }}
                 onClick={onPrevious}
                 disabled={selectedId === 0}
+                aria-label="Previous Chapter"
             >
-                <i className="bi bi-arrow-left-square-fill"></i> Previous
+                <i className="bi bi-arrow-left-square-fill" /> <span className="d-none d-sm-inline">Previous</span>
             </Button>
 
-            <Button style={buttonStyle} onClick={onBackForward}>
-                <i className="bi bi-rewind-fill"></i> Rewind
+            <Button style={buttonStyle} onClick={onBackForward} aria-label="Rewind">
+                <i className="bi bi-rewind-fill" /> <span className="d-none d-sm-inline">Rewind</span>
             </Button>
 
-            <Button style={buttonStyle} onClick={onPlayPause}>
+            <Button style={buttonStyle} onClick={onPlayPause} aria-label={playerStatus === 1 ? 'Pause' : 'Play'}>
                 {playerStatus === 1 ? (
                     <>
-                        <i className="bi bi-pause-fill"></i> Pause
+                        <i className="bi bi-pause-fill" /> <span className="d-none d-sm-inline">Pause</span>
                     </>
                 ) : (
                     <>
-                        <i className="bi bi-play-fill"></i> Play
+                        <i className="bi bi-play-fill" /> <span className="d-none d-sm-inline">Play</span>
                     </>
                 )}
             </Button>
 
-            <Button style={buttonStyle} onClick={onStop}>
-                <i className="bi bi-stop-fill"></i> Stop
+            <Button style={buttonStyle} onClick={onStop} aria-label="Stop">
+                <i className="bi bi-stop-fill" /> <span className="d-none d-sm-inline">Stop</span>
             </Button>
 
-            <Button style={buttonStyle} onClick={onForward}>
-                <i className="bi bi-fast-forward-fill"></i> Forward
+            <Button style={buttonStyle} onClick={onForward} aria-label="Forward">
+                <i className="bi bi-fast-forward-fill" /> <span className="d-none d-sm-inline">Forward</span>
             </Button>
 
             <Button
-                style={{ ...buttonStyle, opacity: selectedId === totalChapters ? 0.5 : 1 }}
+                style={{ ...buttonStyle, opacity: selectedId === totalChapters - 1 ? 0.5 : 1 }}
                 onClick={onNext}
-                disabled={selectedId === totalChapters}
+                disabled={selectedId === totalChapters - 1}
+                aria-label="Next Chapter"
             >
-                <i className="bi bi-arrow-right-square-fill"></i> Next
+                <i className="bi bi-arrow-right-square-fill" /> <span className="d-none d-sm-inline">Next</span>
             </Button>
 
-            <Button style={buttonStyle} onClick={handleDash}>
-                <i className="bi bi-book"></i> DashBoard
+            <Button style={buttonStyle} onClick={handleDash} aria-label="Dashboard">
+                <i className="bi bi-book" /> <span className="d-none d-sm-inline">DashBoard</span>
             </Button>
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '160px' }}>
@@ -140,8 +140,10 @@ const PlayersControl: React.FC<PlayersControlProps> = ({
                     value={speed}
                     onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
                     style={{ width: '100%' }}
+                    aria-label="Playback speed"
                 />
             </div>
+
         </Container>
     );
 };

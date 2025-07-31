@@ -391,8 +391,6 @@ const ReaderMain: React.FC = () => {
                 selectedId={selectedItem}
                 totalChapters={items.length}
                 playerStatus={playerStatus}
-                sentenceIndex={sentenceIndex}
-                sentenceCount={content.length}
                 speed={speed}
                 onPlayPause={onPlayPause}
                 onStop={onStop}
