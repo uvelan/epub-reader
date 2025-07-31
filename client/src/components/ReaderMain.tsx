@@ -8,6 +8,7 @@ import VoiceSelector from "./VoiceSelector";
 import ChapterContent from "./ChapterContent";
 import { TextToSpeech } from "../utils/TextToSpeech";
 import { processTextWithReplacements } from "../utils/WordReplacement";
+import { useNavigate } from "react-router-dom";
 
 import {
     saveChaptersContent,
@@ -69,6 +70,7 @@ const ReaderMain: React.FC = () => {
     const ttsRef = useRef(new TextToSpeech());
     const [updateTrigger, setUpdateTrigger] = useState<number>(0);
     const [content, setContent] = useState<string[]>([]);
+    const navigate = useNavigate();
 
     // Fetch chapters content and restore state
     useEffect(() => {
@@ -303,11 +305,7 @@ const ReaderMain: React.FC = () => {
     const handleDeleteContent = async () => {
         if (!id) return;
         await deleteChaptersContent(id);
-        setItems([]);
-        setContent([]);
-        setSelectedItem(0);
-        setSentenceIndex(0);
-        setPlayerStatus(0);
+        navigate(`/`);
     };
 
     const handleKeyDown = useCallback(
