@@ -40,7 +40,7 @@ const BookCard: React.FC<BookCardProps> = ({ book, onDelete }) => {
 
                 </OverlayTrigger>
 
-                <Card.Text>{book.description}</Card.Text>
+                <Card.Text  style={{ maxHeight: '150px', overflowY: 'auto' }}>{book.description}</Card.Text>
 
                 <div className="d-flex justify-content-between">
                     <Button variant="primary" onClick={handleRead}>
