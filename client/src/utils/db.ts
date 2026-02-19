@@ -63,11 +63,27 @@ export function getSentenceIndex(bookId: string): number | null {
 }
 
 export function saveSelectedVoice(bookId: string, voiceURI: string) {
-    localStorage.setItem(`${READER_PREFIX}${bookId}-selectedVoice`, voiceURI);
+    // bookId is ignored new, saving globally
+    localStorage.setItem(`${READER_PREFIX}global-selectedVoice`, voiceURI);
 }
 
 export function getSelectedVoice(bookId: string): string | null {
-    return localStorage.getItem(`${READER_PREFIX}${bookId}-selectedVoice`);
+    // Try global first
+    let val = localStorage.getItem(`${READER_PREFIX}global-selectedVoice`);
+    if (!val) {
+        // Fallback to book specific if exists (migration path)
+        val = localStorage.getItem(`${READER_PREFIX}${bookId}-selectedVoice`);
+    }
+    return val;
+}
+
+export function saveReaderSpeed(speed: number) {
+    localStorage.setItem(`${READER_PREFIX}global-speed`, String(speed));
+}
+
+export function getReaderSpeed(): number {
+    const val = localStorage.getItem(`${READER_PREFIX}global-speed`);
+    return val ? parseFloat(val) : 1.0;
 }
 
 export async function deleteChaptersContent(bookId: string) {

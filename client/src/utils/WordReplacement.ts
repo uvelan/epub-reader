@@ -56,8 +56,33 @@ export const processTextWithReplacements = (
     id: string,
     originalText: string[]
 ): string[] => {
-    const { mapList, regexMode } = loadReplacements(id);
-    return mapList.length > 0
-        ? applyReplacements(originalText, mapList, regexMode)
-        : originalText;
+    // 1. Load Book Specific
+    const local = loadReplacements(id);
+
+    // 2. Load Global
+    const global = loadReplacements('global'); // 'wordReplacementMap_global'
+
+    let processedText = originalText;
+
+    // Apply Global First (so local can potentially override if valid... 
+    // actually, if global says changes "A"->"B", and local says "B"->"C", then "A"->"C".
+    // If local says "A"->"D", then we apply global "A"->"B" (now "B"), then local "A"->"D" (no match). 
+    // Is that what we want?
+    // Usually local should take precedence for the *same* pattern. 
+    // But since these are lists of rules, merging them intelligently is hard without checking collision.
+    // simpler approach: Apply Global Rules, THEN Apply Local Rules. 
+    // If Global has A->B, text becomes B. Local has A->C, it won't match anymore. 
+    // If user wants A->C in this book, they should ensure Global A->B doesn't run? 
+    // Or maybe we treat them as a single list where Local comes first? 
+    // Let's chain them: Global replacements first (general cleanup), then Local replacements (specific overrides/fixes).
+
+    if (global.mapList.length > 0) {
+        processedText = applyReplacements(processedText, global.mapList, global.regexMode);
+    }
+
+    if (local.mapList.length > 0) {
+        processedText = applyReplacements(processedText, local.mapList, local.regexMode);
+    }
+
+    return processedText;
 };

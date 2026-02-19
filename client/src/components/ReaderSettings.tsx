@@ -20,9 +20,7 @@ interface ReaderSettingsProps {
     onFontSizeChange: (size: number) => void;
     fontFamily: string;
     onFontFamilyChange: (font: string) => void;
-    // Offline Props
-    offlineMode: boolean;
-    onToggleOffline: (enabled: boolean) => void;
+    // Offline Props - Removed as per request (controlled by Dashboard)
 }
 
 interface MapItem {
@@ -44,89 +42,135 @@ const ReaderSettings: React.FC<ReaderSettingsProps> = ({
     onChangeVoice,
     speed,
     onSpeedChange,
-    onDeleteContent,
-    onReplacementsSaved,
     fontSize,
     onFontSizeChange,
     fontFamily,
     onFontFamilyChange,
-    offlineMode,
-    onToggleOffline
+    onDeleteContent,
+    onReplacementsSaved
 }) => {
     // --- Word Replacement State ---
     const [mapList, setMapList] = useState<MapItem[]>([{ key: '', value: '' }]);
     const [regexMode, setRegexMode] = useState(false);
+
+    const [globalMapList, setGlobalMapList] = useState<MapItem[]>([{ key: '', value: '' }]);
+    const [globalRegexMode, setGlobalRegexMode] = useState(false);
+
+    const [replacementTab, setReplacementTab] = useState<'local' | 'global'>('local');
+
     const localStorageKey = `wordReplacementMap_${id}`;
+    const globalStorageKey = `wordReplacementMap_global`;
 
     // Load replacements on mount/id change
     useEffect(() => {
-        if (show) { // Reload when opened to ensure fresh state if changed elsewhere
-            const loadFromLocalStorage = () => {
-                try {
-                    const storedData = localStorage.getItem(localStorageKey);
-                    if (storedData) {
-                        const parsedData: StoredData = JSON.parse(storedData);
-                        if (parsedData.mapList && parsedData.mapList.length > 0) {
-                            setMapList(parsedData.mapList);
-                        } else {
-                            setMapList([{ key: '', value: '' }]);
-                        }
-                        if (parsedData.regexMode !== undefined) {
-                            setRegexMode(parsedData.regexMode);
-                        }
-                    } else {
-                        setMapList([{ key: '', value: '' }]);
-                        setRegexMode(false);
-                    }
-                } catch (error) {
-                    console.error('Failed to load from local storage:', error);
+        if (show) {
+            // Load Local
+            try {
+                const storedData = localStorage.getItem(localStorageKey);
+                if (storedData) {
+                    const parsedData: StoredData = JSON.parse(storedData);
+                    setMapList((parsedData.mapList && parsedData.mapList.length > 0) ? parsedData.mapList : [{ key: '', value: '' }]);
+                    setRegexMode(parsedData.regexMode ?? false);
+                } else {
+                    setMapList([{ key: '', value: '' }]);
+                    setRegexMode(false);
                 }
-            };
-            loadFromLocalStorage();
+            } catch (error) {
+                console.error('Failed to load local replacements:', error);
+            }
+
+            // Load Global
+            try {
+                const storedGlobal = localStorage.getItem(globalStorageKey);
+                if (storedGlobal) {
+                    const parsedData: StoredData = JSON.parse(storedGlobal);
+                    setGlobalMapList((parsedData.mapList && parsedData.mapList.length > 0) ? parsedData.mapList : [{ key: '', value: '' }]);
+                    setGlobalRegexMode(parsedData.regexMode ?? false);
+                } else {
+                    setGlobalMapList([{ key: '', value: '' }]);
+                    setGlobalRegexMode(false);
+                }
+            } catch (error) {
+                console.error('Failed to load global replacements:', error);
+            }
         }
-    }, [id, localStorageKey, show]);
+    }, [id, localStorageKey, globalStorageKey, show]);
 
     // Word Replacement Handlers
     const handleMapChange = (index: number, field: 'key' | 'value', value: string) => {
-        const updatedList = [...mapList];
-        updatedList[index][field] = value;
-        setMapList(updatedList);
+        if (replacementTab === 'local') {
+            const updatedList = [...mapList];
+            updatedList[index][field] = value;
+            setMapList(updatedList);
+        } else {
+            const updatedList = [...globalMapList];
+            updatedList[index][field] = value;
+            setGlobalMapList(updatedList);
+        }
     };
 
     const handleAddMapItem = () => {
-        setMapList([...mapList, { key: '', value: '' }]);
+        if (replacementTab === 'local') {
+            setMapList([...mapList, { key: '', value: '' }]);
+        } else {
+            setGlobalMapList([...globalMapList, { key: '', value: '' }]);
+        }
     };
 
     const handleRemoveMapItem = (index: number) => {
-        if (mapList.length <= 1) return;
-        const updatedList = [...mapList];
-        updatedList.splice(index, 1);
-        setMapList(updatedList);
+        if (replacementTab === 'local') {
+            if (mapList.length <= 1) return;
+            const updatedList = [...mapList];
+            updatedList.splice(index, 1);
+            setMapList(updatedList);
+        } else {
+            if (globalMapList.length <= 1) return;
+            const updatedList = [...globalMapList];
+            updatedList.splice(index, 1);
+            setGlobalMapList(updatedList);
+        }
     };
 
+    const setRegexModeInternal = (checked: boolean) => {
+        if (replacementTab === 'local') {
+            setRegexMode(checked);
+        } else {
+            setGlobalRegexMode(checked);
+        }
+    }
+
     const saveReplacements = () => {
-        const filteredList = mapList.filter(item => item.key.trim() !== '');
-        const dataToStore: StoredData = {
-            mapList: filteredList.length > 0 ? filteredList : [{ key: '', value: '' }],
-            regexMode
-        };
-        try {
+        // Save current tab's list? Or both? Ideally save what we edited.
+        // Let's just save based on current tab to be safe, or separate save buttons?
+        // UI has one button "Save {Tab} Replacements".
+
+        if (replacementTab === 'local') {
+            const filteredList = mapList.filter(item => item.key.trim() !== '');
+            const dataToStore: StoredData = {
+                mapList: filteredList.length > 0 ? filteredList : [{ key: '', value: '' }],
+                regexMode
+            };
             localStorage.setItem(localStorageKey, JSON.stringify(dataToStore));
-            console.log(`Saved settings for ID ${id}:`, dataToStore);
-        } catch (error) {
-            console.error('Failed to save to local storage:', error);
+            console.log(`Saved local settings for ID ${id}`);
+        } else {
+            const filteredList = globalMapList.filter(item => item.key.trim() !== '');
+            const dataToStore: StoredData = {
+                mapList: filteredList.length > 0 ? filteredList : [{ key: '', value: '' }],
+                regexMode: globalRegexMode
+            };
+            localStorage.setItem(globalStorageKey, JSON.stringify(dataToStore));
+            console.log(`Saved global settings`);
         }
     };
 
     const handleClose = () => {
-        // Explicit save required for replacements
         onHide();
     };
 
     const handleSaveReplacements = () => {
         saveReplacements();
         if (onReplacementsSaved) onReplacementsSaved();
-        // Feedback?
+        alert(`${replacementTab === 'local' ? 'Book' : 'Global'} replacements saved!`);
     };
 
     const sortedVoices = [...voices].sort((a, b) => a.name.localeCompare(b.name));
@@ -150,7 +194,7 @@ const ReaderSettings: React.FC<ReaderSettingsProps> = ({
                         {voices.length === 0 && <option disabled>No voices available</option>}
                         {sortedVoices.map((voice) => (
                             <option key={voice.voiceURI} value={voice.voiceURI}>
-                                {voice.name} ({voice.lang})
+                                {voice.name} ({voice.lang}){(voice as any).localService ? " (On Device)" : ""}
                             </option>
                         ))}
                     </Form.Select>
@@ -198,8 +242,34 @@ const ReaderSettings: React.FC<ReaderSettingsProps> = ({
 
                 {/* Word Replacements */}
                 <h5 style={{ borderBottom: '1px solid #d6c8a8', paddingBottom: '5px', marginBottom: '15px', marginTop: '30px' }}>Word Replacements</h5>
+
+                {/* Tabs for Global vs Local */}
+                <div className="d-flex mb-2">
+                    <Button
+                        variant={replacementTab === 'local' ? 'primary' : 'outline-primary'}
+                        size="sm"
+                        className="me-2"
+                        onClick={() => setReplacementTab('local')}
+                    >
+                        This Book
+                    </Button>
+                    <Button
+                        variant={replacementTab === 'global' ? 'primary' : 'outline-primary'}
+                        size="sm"
+                        onClick={() => setReplacementTab('global')}
+                    >
+                        Global (All Books)
+                    </Button>
+                </div>
+
                 <div className="p-3" style={{ backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #ddd' }}>
-                    {mapList.map((item, index) => (
+                    <p className="text-muted small mb-3">
+                        {replacementTab === 'local'
+                            ? "Rules apply only to this book."
+                            : "Rules apply to all books. Global rules run before local rules."}
+                    </p>
+
+                    {(replacementTab === 'local' ? mapList : globalMapList).map((item, index) => (
                         <Row key={index} className="mb-2 align-items-center">
                             <Col>
                                 <Form.Control
@@ -221,7 +291,7 @@ const ReaderSettings: React.FC<ReaderSettingsProps> = ({
                                 <Button
                                     variant="outline-danger"
                                     onClick={() => handleRemoveMapItem(index)}
-                                    disabled={mapList.length <= 1}
+                                    disabled={(replacementTab === 'local' ? mapList : globalMapList).length <= 1}
                                     size="sm"
                                 >
                                     ×
@@ -236,34 +306,23 @@ const ReaderSettings: React.FC<ReaderSettingsProps> = ({
                         <Form.Check
                             type="checkbox"
                             label="Use Regex"
-                            checked={regexMode}
-                            onChange={(e) => setRegexMode(e.target.checked)}
+                            checked={replacementTab === 'local' ? regexMode : globalRegexMode}
+                            onChange={(e) => setRegexModeInternal(e.target.checked)}
                             style={{ userSelect: 'none' }}
                         />
                     </div>
                     <div className="mt-3 text-end">
                         <Button variant="primary" size="sm" onClick={handleSaveReplacements}>
-                            Save Replacements
+                            Save {replacementTab === 'local' ? 'Book' : 'Global'} Replacements
                         </Button>
                     </div>
                 </div>
 
                 {/* Cache Management */}
-                <h5 style={{ borderBottom: '1px solid #d6c8a8', paddingBottom: '5px', marginBottom: '15px', marginTop: '30px' }}>Storage & Connectivity</h5>
-                <Form.Group className="mb-3 d-flex align-items-center justify-content-between">
-                    <div>
-                        <Form.Label className="mb-0">Offline Mode</Form.Label>
-                        <Form.Text className="d-block text-muted" style={{ fontSize: '0.85rem' }}>
-                            Read from local cache only.
-                        </Form.Text>
-                    </div>
-                    <Form.Check
-                        type="switch"
-                        id="offline-mode-switch"
-                        checked={offlineMode}
-                        onChange={(e) => onToggleOffline(e.target.checked)}
-                    />
-                </Form.Group>
+                <h5 style={{ borderBottom: '1px solid #d6c8a8', paddingBottom: '5px', marginBottom: '15px', marginTop: '30px' }}>Storage</h5>
+                <p className="text-muted small">
+                    Offline mode is managed from the Dashboard.
+                </p>
 
                 <Button variant="danger" onClick={onDeleteContent} className="w-100">
                     Delete Chapter Cache

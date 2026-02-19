@@ -27,6 +27,8 @@ import {
     saveFontFamily,
     getFontFamily,
     saveOfflinePref,
+    saveReaderSpeed,
+    getReaderSpeed,
 } from "../utils/db";
 
 const baseUrl = process.env.REACT_APP_API_BASE_URL;
@@ -73,7 +75,7 @@ const ReaderMain: React.FC = () => {
     const [playerStatus, setPlayerStatus] = useState<0 | 1 | 2>(0);
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
     const [selectedVoice, setSelectedVoice] = useState<string>("");
-    const [speed, setSpeed] = useState(1);
+    const [speed, setSpeed] = useState(getReaderSpeed());
     const [fontSize, setFontSize] = useState(18);
     const [fontFamily, setFontFamily] = useState("'Georgia', serif");
     // State Declarations
@@ -300,6 +302,7 @@ const ReaderMain: React.FC = () => {
     const onSpeedChange = (newSpeed: number) => {
         setSpeed(newSpeed);
         ttsRef.current.setRate(newSpeed);
+        saveReaderSpeed(newSpeed);
     };
 
 
@@ -529,12 +532,6 @@ const ReaderMain: React.FC = () => {
                 onFontFamilyChange={(f) => {
                     setFontFamily(f);
                     saveFontFamily(f);
-                }}
-                offlineMode={isOfflineMode}
-                onToggleOffline={(enabled) => {
-                    setIsOfflineMode(enabled);
-                    saveOfflinePref(enabled);
-                    loadContent(enabled, true); // Hot swap content silently
                 }}
             />
         </Container>
