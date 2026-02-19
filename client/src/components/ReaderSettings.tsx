@@ -20,6 +20,9 @@ interface ReaderSettingsProps {
     onFontSizeChange: (size: number) => void;
     fontFamily: string;
     onFontFamilyChange: (font: string) => void;
+    // Offline Props
+    offlineMode: boolean;
+    onToggleOffline: (enabled: boolean) => void;
 }
 
 interface MapItem {
@@ -46,7 +49,9 @@ const ReaderSettings: React.FC<ReaderSettingsProps> = ({
     fontSize,
     onFontSizeChange,
     fontFamily,
-    onFontFamilyChange
+    onFontFamilyChange,
+    offlineMode,
+    onToggleOffline
 }) => {
     // --- Word Replacement State ---
     const [mapList, setMapList] = useState<MapItem[]>([{ key: '', value: '' }]);
@@ -244,8 +249,23 @@ const ReaderSettings: React.FC<ReaderSettingsProps> = ({
                 </div>
 
                 {/* Cache Management */}
-                <h5 style={{ borderBottom: '1px solid #d6c8a8', paddingBottom: '5px', marginBottom: '15px', marginTop: '30px' }}>Storage</h5>
-                <Button variant="danger" onClick={onDeleteContent}>
+                <h5 style={{ borderBottom: '1px solid #d6c8a8', paddingBottom: '5px', marginBottom: '15px', marginTop: '30px' }}>Storage & Connectivity</h5>
+                <Form.Group className="mb-3 d-flex align-items-center justify-content-between">
+                    <div>
+                        <Form.Label className="mb-0">Offline Mode</Form.Label>
+                        <Form.Text className="d-block text-muted" style={{ fontSize: '0.85rem' }}>
+                            Read from local cache only.
+                        </Form.Text>
+                    </div>
+                    <Form.Check
+                        type="switch"
+                        id="offline-mode-switch"
+                        checked={offlineMode}
+                        onChange={(e) => onToggleOffline(e.target.checked)}
+                    />
+                </Form.Group>
+
+                <Button variant="danger" onClick={onDeleteContent} className="w-100">
                     Delete Chapter Cache
                 </Button>
 

@@ -26,6 +26,7 @@ import {
     getFontSize,
     saveFontFamily,
     getFontFamily,
+    saveOfflinePref,
 } from "../utils/db";
 
 const baseUrl = process.env.REACT_APP_API_BASE_URL;
@@ -75,10 +76,11 @@ const ReaderMain: React.FC = () => {
     const [speed, setSpeed] = useState(1);
     const [fontSize, setFontSize] = useState(18);
     const [fontFamily, setFontFamily] = useState("'Georgia', serif");
+    // State Declarations
     const [loading, setLoading] = useState(true);
     const ttsRef = useRef(new TextToSpeech());
     const [updateTrigger, setUpdateTrigger] = useState<number>(0);
-    const [isOfflineMode, setIsOfflineMode] = useState(false);
+    const [isOfflineMode, setIsOfflineMode] = useState(getOfflinePref());
     const [pendingUpdate, setPendingUpdate] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [content, setContent] = useState<string[]>([]);
@@ -93,84 +95,85 @@ const ReaderMain: React.FC = () => {
         }
     }, [selectedItem, content]);
 
-    // Fetch chapters content and restore state
-    useEffect(() => {
-        const fetchChapters = async () => {
-            if (!id) return;
-            setLoading(true);
-            setError(null);
-            setIsOfflineMode(false);
-            setPendingUpdate(null);
+    // Unified Content Loading Logic
+    const loadContent = useCallback(async (enableOffline: boolean, silent = false) => {
+        if (!id) return;
+        if (!silent) setLoading(true);
+        setError(null);
+        setPendingUpdate(null);
 
-            // Load Font/Settings
-            setFontSize(getFontSize());
-            setFontFamily(getFontFamily());
-
-            let cachedLoaded = false;
-
-            // 1. Load Cache Immediately
-            try {
-                const storedContent = await getChaptersContent(id);
-                if (storedContent && Array.isArray(storedContent) && storedContent.length > 0) {
-                    console.log("Loaded chapters from cache");
-                    setItems(storedContent);
-                    cachedLoaded = true;
-                    setLoading(false); // Show cached content immediately
-                }
-            } catch (e) {
-                console.warn("Cache load failed:", e);
+        // 1. Always try Cache first for immediate display
+        let cachedLoaded = false;
+        try {
+            const storedContent = await getChaptersContent(id);
+            if (storedContent && Array.isArray(storedContent) && storedContent.length > 0) {
+                console.log("Loaded chapters from cache");
+                setItems(storedContent);
+                cachedLoaded = true;
+                if (!silent) setLoading(false);
             }
+        } catch (e) {
+            console.warn("Cache load failed:", e);
+        }
 
-            // 2. Fetch from API (Background)
-            if (!getOfflinePref()) {
-                try {
-                    const res = await axios.get(`${baseUrl}/epub/${id}`);
-                    const chapters = (res.data.content || []).sort((a: Item, b: Item) => a.id - b.id);
+        // 2. If Offline Mode is ON, check if we have content
+        if (enableOffline) {
+            if (!cachedLoaded) {
+                setError("No offline content found. Please go online to download the book.");
+            }
+            // If cached, we are good.
+            if (!silent) setLoading(false);
+            return;
+        }
 
-                    const serverData = {
-                        items: chapters,
-                        chapterId: Math.max(0, Math.min(res.data.chapterid || 0, chapters.length - 1)),
-                        sentenceId: Math.max(0, Math.min(res.data.sentenceid || 0, (chapters[Math.max(0, Math.min(res.data.chapterid || 0, chapters.length - 1))]?.content.length || 0) - 1))
-                    };
+        // 3. Online Mode: Fetch from API
+        try {
+            const res = await axios.get(`${baseUrl}/epub/${id}`);
+            const chapters = (res.data.content || []).sort((a: Item, b: Item) => a.id - b.id);
 
-                    if (!cachedLoaded) {
-                        // No cache? Apply immediately
-                        setItems(serverData.items);
-                        setSelectedItem(serverData.chapterId);
-                        setSentenceIndex(serverData.sentenceId);
+            const serverData = {
+                items: chapters,
+                chapterId: Math.max(0, Math.min(res.data.chapterid || 0, chapters.length - 1)),
+                sentenceId: Math.max(0, Math.min(res.data.sentenceid || 0, (chapters[Math.max(0, Math.min(res.data.chapterid || 0, chapters.length - 1))]?.content.length || 0) - 1))
+            };
 
-                        await saveChaptersContent(id, serverData.items);
-                        saveSelectedChapter(id, serverData.chapterId);
-                        saveSentenceIndex(id, serverData.sentenceId);
-                        setLoading(false);
-                    } else {
-                        // Cache exists. Check if we should prompt?
-                        // For now, always prompt if we successfully got data from server, 
-                        // assuming server data might be newer or better.
-                        // Ideally we check if deep equal, but for now just prompt.
-                        setPendingUpdate(serverData);
-                        // We don't save to cache yet, wait for user to accept.
-                    }
+            if (!cachedLoaded) {
+                // No cache? Apply immediately
+                setItems(serverData.items);
+                setSelectedItem(serverData.chapterId);
+                setSentenceIndex(serverData.sentenceId);
 
-                } catch (err) {
-                    console.error("Failed to fetch from API:", err);
-                    if (!cachedLoaded) {
-                        // No cache and API failed -> Error
-                        setError("Failed to load book content. Please check your connection.");
-                        setLoading(false);
-                    } else {
-                        // Cache loaded but API failed -> Offline Mode
-                        setIsOfflineMode(true);
-                    }
-                }
+                // Save to cache
+                await saveChaptersContent(id, serverData.items);
+                saveSelectedChapter(id, serverData.chapterId);
+                saveSentenceIndex(id, serverData.sentenceId);
+
+                if (!silent) setLoading(false);
             } else {
-                setLoading(false);
+                // Cache exists. Check if we should prompt?
+                setPendingUpdate(serverData);
             }
-        };
 
-        fetchChapters();
-        // eslint-disable-next-line
+        } catch (err) {
+            console.error("Failed to fetch from API:", err);
+            if (!cachedLoaded) {
+                setError("Failed to load book content. Please check your connection.");
+            }
+            // If cached loaded, we essentially remain in offline state visually, 
+            // but we don't switch the toggle unless user explicitly does.
+        } finally {
+            if (!silent) setLoading(false);
+        }
     }, [id]);
+
+    // Initial Load
+    useEffect(() => {
+        // Load Font/Settings
+        setFontSize(getFontSize());
+        setFontFamily(getFontFamily());
+
+        loadContent(getOfflinePref());
+    }, [loadContent]);
 
     // Process text when chapter or ID changes
     useEffect(() => {
@@ -439,7 +442,7 @@ const ReaderMain: React.FC = () => {
         );
     }
 
-    const selectedChapter = items[selectedItem] || items[0] || { name: "" };
+
 
     return (
         <Container
@@ -526,6 +529,12 @@ const ReaderMain: React.FC = () => {
                 onFontFamilyChange={(f) => {
                     setFontFamily(f);
                     saveFontFamily(f);
+                }}
+                offlineMode={isOfflineMode}
+                onToggleOffline={(enabled) => {
+                    setIsOfflineMode(enabled);
+                    saveOfflinePref(enabled);
+                    loadContent(enabled, true); // Hot swap content silently
                 }}
             />
         </Container>

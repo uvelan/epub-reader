@@ -103,6 +103,24 @@ const BookDashboard: React.FC = () => {
             console.error("Delete failed", err);
         }
     };
+
+    const checkForUpdates = async () => {
+        try {
+            const res = await fetch(`${baseUrl}/epub`);
+            if (!res.ok) throw new Error('Failed to fetch books');
+            const data = await res.json();
+
+            // Check if there are differences or just always prompt?
+            // For now, simple implementation: if success, show prompt
+            setPendingUpdate(data);
+            setIsOfflineMode(false); // We are online now
+        } catch (err) {
+            console.error("Failed to check for updates:", err);
+            // Optional: Show a toast or small error? 
+            // For now, silent failure is okay, user stays in "Manual Offline" effectively
+            // or we could revert the switch.
+        }
+    };
     const booksPerPage = 9;
 
     const filteredBooks = useMemo(() => {
@@ -147,14 +165,15 @@ const BookDashboard: React.FC = () => {
                                 type="switch"
                                 id="offline-switch"
                                 label="Offline Mode"
-                                checked={isManualOffline}
                                 onChange={(e) => {
                                     const val = e.target.checked;
                                     setIsManualOffline(val);
                                     saveOfflinePref(val);
                                     if (!val) {
-                                        // If switching to Online, reload/fetch
-                                        window.location.reload();
+                                        // If switching to Online, check for updates silently
+                                        checkForUpdates();
+                                    } else {
+                                        setIsOfflineMode(true); // Visually indicate offline
                                     }
                                 }}
                             />
