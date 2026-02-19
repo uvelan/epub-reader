@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import UploadModal from './UploadModal';
 import { useNavigate } from "react-router-dom";
-import { saveBooksToDB, getBooksFromDB, clearBooksFromDB } from '../utils/db';
+import { saveBooksToDB, getBooksFromDB, clearBooksFromDB, getOfflinePref, saveOfflinePref } from '../utils/db';
 
 import {
     Container,
@@ -25,7 +25,10 @@ const BookDashboard: React.FC = () => {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isOfflineMode, setIsOfflineMode] = useState(false);
+    // Initialize from storage or default true
+    const [isManualOffline, setIsManualOffline] = useState(getOfflinePref());
+    const [isOfflineMode, setIsOfflineMode] = useState(false); // automated offline detection
+    const [pendingUpdate, setPendingUpdate] = useState<Book[] | null>(null);
     const navigate = useNavigate();
     const handleOnSuccess = () => {
         navigate(`/`);
@@ -33,30 +36,52 @@ const BookDashboard: React.FC = () => {
     useEffect(() => {
         const loadBooks = async () => {
             setLoading(true);
+            setIsOfflineMode(false);
+            setPendingUpdate(null);
+            setError(null);
+
+            let cachedLoaded = false;
+
+            // 1. Load Cache Immediately
             try {
                 const cached = await getBooksFromDB();
                 if (cached.length > 0) {
                     setBooks(cached);
+                    cachedLoaded = true;
+                    setLoading(false); // Show cached content immediately
                 }
+            } catch (e) {
+                console.warn("Cache load failed", e);
+            }
 
-                const res = await fetch(`${baseUrl}/epub`);
-                if (!res.ok) throw new Error('Failed to fetch books');
-                const data = await res.json();
-                setBooks(data);
-                await saveBooksToDB(data);
-                setError(null);
-                setIsOfflineMode(false);
-            } catch (err) {
-                console.error("Failed to fetch from server", err);
-                const cached = await getBooksFromDB();
-                if (cached.length > 0) {
-                    setBooks(cached);
-                    setIsOfflineMode(true);
-                    setError(null);
-                } else if (books.length === 0) {
-                    setError("Failed to load books. Please check your connection.");
+            // 2. Fetch from API (Background)
+            if (!getOfflinePref()) {
+                try {
+                    const res = await fetch(`${baseUrl}/epub`);
+                    if (!res.ok) throw new Error('Failed to fetch books');
+                    const data = await res.json();
+
+                    if (!cachedLoaded) {
+                        setBooks(data);
+                        await saveBooksToDB(data);
+                        setLoading(false);
+                    } else {
+                        // Cache loaded, check if we should prompt
+                        // Ideally check for diff, but for now just prompt
+                        setPendingUpdate(data);
+                    }
+
+                } catch (err) {
+                    console.error("Failed to fetch from server", err);
+                    if (!cachedLoaded) {
+                        setError("Failed to load books. Please check your connection.");
+                    } else {
+                        setIsOfflineMode(true);
+                    }
+                } finally {
+                    if (!cachedLoaded) setLoading(false);
                 }
-            } finally {
+            } else {
                 setLoading(false);
             }
         };
@@ -117,6 +142,23 @@ const BookDashboard: React.FC = () => {
                         >
                             Clear Cache
                         </Button>
+                        <div className="d-flex align-items-center ms-2">
+                            <Form.Check
+                                type="switch"
+                                id="offline-switch"
+                                label="Offline Mode"
+                                checked={isManualOffline}
+                                onChange={(e) => {
+                                    const val = e.target.checked;
+                                    setIsManualOffline(val);
+                                    saveOfflinePref(val);
+                                    if (!val) {
+                                        // If switching to Online, reload/fetch
+                                        window.location.reload();
+                                    }
+                                }}
+                            />
+                        </div>
                     </Col>
                 </Row>
 
@@ -140,6 +182,19 @@ const BookDashboard: React.FC = () => {
                 {isOfflineMode && (
                     <Alert variant="warning" dismissible onClose={() => setIsOfflineMode(false)} className="mb-4">
                         Offline Mode: Showing cached books. Some actions may be unavailable.
+                    </Alert>
+                )}
+
+                {pendingUpdate && (
+                    <Alert variant="info" className="mb-4">
+                        New books available from server.
+                        <Button variant="link" size="sm" onClick={async () => {
+                            setBooks(pendingUpdate);
+                            await saveBooksToDB(pendingUpdate);
+                            setPendingUpdate(null);
+                            alert("Library updated!");
+                        }}>Refresh List</Button>
+                        <Button variant="link" size="sm" className="text-muted" onClick={() => setPendingUpdate(null)}>Dismiss</Button>
                     </Alert>
                 )}
 

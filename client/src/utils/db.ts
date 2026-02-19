@@ -73,3 +73,30 @@ export function getSelectedVoice(bookId: string): string | null {
 export async function deleteChaptersContent(bookId: string) {
     await del(`${READER_PREFIX}${bookId}-content`);
 }
+
+export function saveOfflinePref(isOffline: boolean) {
+    localStorage.setItem(`${READER_PREFIX}offlinePref`, String(isOffline));
+}
+
+export function getOfflinePref(): boolean {
+    const val = localStorage.getItem(`${READER_PREFIX}offlinePref`);
+    // Default to true if not set (Offline Mode by default)
+    return val === null ? true : val === 'true';
+}
+
+export function saveFontSize(size: number) {
+    localStorage.setItem(`${READER_PREFIX}fontSize`, String(size));
+}
+
+export function getFontSize(): number {
+    const val = localStorage.getItem(`${READER_PREFIX}fontSize`);
+    return val ? parseFloat(val) : 18; // Default 18px
+}
+
+export function saveFontFamily(font: string) {
+    localStorage.setItem(`${READER_PREFIX}fontFamily`, font);
+}
+
+export function getFontFamily(): string {
+    return localStorage.getItem(`${READER_PREFIX}fontFamily`) || "'Georgia', serif";
+}

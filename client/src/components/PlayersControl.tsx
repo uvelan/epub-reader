@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 const playersStyle: React.CSSProperties = {
     display: 'flex',
     height: 'auto',
-    marginBottom: '10px',
+    // marginBottom: '10px', // Removed for sticky bottom
     backgroundColor: '#d6c8a8',
     borderRadius: '8px',
     alignItems: 'center',
@@ -44,6 +44,7 @@ interface PlayersControlProps {
     onBackForward: () => void;
     onSpeedChange: (speed: number) => void;
     onToggleChapters: () => void;
+    onOpenSettings: () => void;
 }
 
 const getPlayerStatus = (playerStatus: number) => {
@@ -56,19 +57,20 @@ const getPlayerStatus = (playerStatus: number) => {
 };
 
 const PlayersControl: React.FC<PlayersControlProps> = ({
-                                                           selectedId,
-                                                           totalChapters,
-                                                           playerStatus,
-                                                           speed,
-                                                           onPlayPause,
-                                                           onStop,
-                                                           onNext,
-                                                           onPrevious,
-                                                           onForward,
-                                                           onBackForward,
-                                                           onSpeedChange,
-                                                           onToggleChapters,
-                                                       }) => {
+    selectedId,
+    totalChapters,
+    playerStatus,
+    speed, // Kept for now if we want to display it, but instructions imply moving control.
+    onPlayPause,
+    onStop,
+    onNext,
+    onPrevious,
+    onForward,
+    onBackForward,
+    onSpeedChange,
+    onToggleChapters,
+    onOpenSettings,
+}) => {
     const navigate = useNavigate();
     const handleDash = () => {
         navigate(`/dashboard`);
@@ -123,26 +125,13 @@ const PlayersControl: React.FC<PlayersControlProps> = ({
                 <i className="bi bi-arrow-right-square-fill" /> <span className="d-none d-sm-inline">Next</span>
             </Button>
 
-            <Button style={buttonStyle} onClick={handleDash} aria-label="Dashboard">
-                <i className="bi bi-book" /> <span className="d-none d-sm-inline">DashBoard</span>
+            <Button style={buttonStyle} onClick={onOpenSettings} aria-label="Settings">
+                <i className="bi bi-gear-fill" /> <span className="d-none d-sm-inline">Settings</span>
             </Button>
 
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '160px' }}>
-                <label htmlFor="speed-slider" style={{ fontSize: '0.9rem' }}>
-                    Speed: {speed.toFixed(1)}x
-                </label>
-                <input
-                    id="speed-slider"
-                    type="range"
-                    min={0.5}
-                    max={3.0}
-                    step={0.1}
-                    value={speed}
-                    onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
-                    style={{ width: '100%' }}
-                    aria-label="Playback speed"
-                />
-            </div>
+            <Button style={buttonStyle} onClick={handleDash} aria-label="Dashboard">
+                <i className="bi bi-house-door-fill" /> <span className="d-none d-sm-inline">DashBoard</span>
+            </Button>
 
         </Container>
     );

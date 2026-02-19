@@ -4,8 +4,9 @@ import axios from "axios";
 import { Container, Alert } from "react-bootstrap";
 import ChapterList from "./ChapterList";
 import PlayersControl from "./PlayersControl";
-import VoiceSelector from "./VoiceSelector";
+
 import ChapterContent from "./ChapterContent";
+import ReaderSettings from "./ReaderSettings";
 import { TextToSpeech } from "../utils/TextToSpeech";
 import { processTextWithReplacements } from "../utils/WordReplacement";
 import { useNavigate } from "react-router-dom";
@@ -19,7 +20,12 @@ import {
     getSentenceIndex,
     saveSelectedVoice,
     getSelectedVoice,
-    deleteChaptersContent
+    deleteChaptersContent,
+    getOfflinePref,
+    saveFontSize,
+    getFontSize,
+    saveFontFamily,
+    getFontFamily,
 } from "../utils/db";
 
 const baseUrl = process.env.REACT_APP_API_BASE_URL;
@@ -33,6 +39,7 @@ interface Item {
 }
 
 async function saveProgress(bookId: string, chapterId: number, sentenceId: number) {
+    if (getOfflinePref()) return; // Skip DB update if in Offline Mode
     try {
         await axios.post(`${baseUrl}/epub/${bookId}/progress`, {
             chapterId,
@@ -66,13 +73,25 @@ const ReaderMain: React.FC = () => {
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
     const [selectedVoice, setSelectedVoice] = useState<string>("");
     const [speed, setSpeed] = useState(1);
+    const [fontSize, setFontSize] = useState(18);
+    const [fontFamily, setFontFamily] = useState("'Georgia', serif");
     const [loading, setLoading] = useState(true);
     const ttsRef = useRef(new TextToSpeech());
     const [updateTrigger, setUpdateTrigger] = useState<number>(0);
     const [isOfflineMode, setIsOfflineMode] = useState(false);
+    const [pendingUpdate, setPendingUpdate] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [content, setContent] = useState<string[]>([]);
+    const [showSettings, setShowSettings] = useState(false);
+    const contentRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
+
+    // Scroll to top when chapter changes
+    useEffect(() => {
+        if (contentRef.current) {
+            contentRef.current.scrollTop = 0;
+        }
+    }, [selectedItem, content]);
 
     // Fetch chapters content and restore state
     useEffect(() => {
@@ -81,47 +100,70 @@ const ReaderMain: React.FC = () => {
             setLoading(true);
             setError(null);
             setIsOfflineMode(false);
+            setPendingUpdate(null);
+
+            // Load Font/Settings
+            setFontSize(getFontSize());
+            setFontFamily(getFontFamily());
+
+            let cachedLoaded = false;
+
+            // 1. Load Cache Immediately
             try {
-                // Network First: Try to fetch from API
-                const res = await axios.get(`${baseUrl}/epub/${id}`);
-                const chapters = (res.data.content || []).sort((a: Item, b: Item) => a.id - b.id);
-                setItems(chapters);
-
-                // Sync progress from server
-                const sel = Math.max(0, Math.min(res.data.chapterid || 0, chapters.length - 1));
-                setSelectedItem(sel);
-
-                const sentenceMax = chapters[sel]?.content.length || 0;
-                const sent = Math.max(0, Math.min(res.data.sentenceid || 0, sentenceMax - 1));
-                setSentenceIndex(sent);
-
-                // Update cache
-                await saveChaptersContent(id, chapters);
-                saveSelectedChapter(id, sel);
-                saveSentenceIndex(id, sent);
-
-            } catch (err) {
-                console.error("Failed to fetch from API, attempting cache fallback:", err);
-                try {
-                    const storedContent = await getChaptersContent(id);
-                    if (storedContent && Array.isArray(storedContent) && storedContent.length > 0) {
-                        console.log("Loaded chapters from cache");
-                        setItems(storedContent);
-                        setIsOfflineMode(true);
-
-                        // Validate current selection
-                        setSelectedItem(prev => {
-                            if (prev < 0 || prev >= storedContent.length) return 0;
-                            return prev;
-                        });
-                    } else {
-                        throw new Error("No content available offline");
-                    }
-                } catch (cacheErr) {
-                    console.error("Failed to load from cache:", cacheErr);
-                    setError("Failed to load book content. Please check your connection.");
+                const storedContent = await getChaptersContent(id);
+                if (storedContent && Array.isArray(storedContent) && storedContent.length > 0) {
+                    console.log("Loaded chapters from cache");
+                    setItems(storedContent);
+                    cachedLoaded = true;
+                    setLoading(false); // Show cached content immediately
                 }
-            } finally {
+            } catch (e) {
+                console.warn("Cache load failed:", e);
+            }
+
+            // 2. Fetch from API (Background)
+            if (!getOfflinePref()) {
+                try {
+                    const res = await axios.get(`${baseUrl}/epub/${id}`);
+                    const chapters = (res.data.content || []).sort((a: Item, b: Item) => a.id - b.id);
+
+                    const serverData = {
+                        items: chapters,
+                        chapterId: Math.max(0, Math.min(res.data.chapterid || 0, chapters.length - 1)),
+                        sentenceId: Math.max(0, Math.min(res.data.sentenceid || 0, (chapters[Math.max(0, Math.min(res.data.chapterid || 0, chapters.length - 1))]?.content.length || 0) - 1))
+                    };
+
+                    if (!cachedLoaded) {
+                        // No cache? Apply immediately
+                        setItems(serverData.items);
+                        setSelectedItem(serverData.chapterId);
+                        setSentenceIndex(serverData.sentenceId);
+
+                        await saveChaptersContent(id, serverData.items);
+                        saveSelectedChapter(id, serverData.chapterId);
+                        saveSentenceIndex(id, serverData.sentenceId);
+                        setLoading(false);
+                    } else {
+                        // Cache exists. Check if we should prompt?
+                        // For now, always prompt if we successfully got data from server, 
+                        // assuming server data might be newer or better.
+                        // Ideally we check if deep equal, but for now just prompt.
+                        setPendingUpdate(serverData);
+                        // We don't save to cache yet, wait for user to accept.
+                    }
+
+                } catch (err) {
+                    console.error("Failed to fetch from API:", err);
+                    if (!cachedLoaded) {
+                        // No cache and API failed -> Error
+                        setError("Failed to load book content. Please check your connection.");
+                        setLoading(false);
+                    } else {
+                        // Cache loaded but API failed -> Offline Mode
+                        setIsOfflineMode(true);
+                    }
+                }
+            } else {
                 setLoading(false);
             }
         };
@@ -201,6 +243,7 @@ const ReaderMain: React.FC = () => {
         // Save progress
         if (id) {
             saveSentenceIndex(id, sentenceIndex);
+            saveSelectedChapter(id, selectedItem);
             saveProgress(id, selectedItem, sentenceIndex);
         }
     }, [sentenceIndex, playerStatus, play, id, selectedItem]);
@@ -256,6 +299,8 @@ const ReaderMain: React.FC = () => {
         ttsRef.current.setRate(newSpeed);
     };
 
+
+
     const onVoiceChange = (voiceURI: string) => {
         setSelectedVoice(voiceURI);
         ttsRef.current.setVoice(voiceURI);
@@ -274,14 +319,26 @@ const ReaderMain: React.FC = () => {
         if (id) saveSelectedChapter(id, chapterId);
     };
 
-    const handlePopupSubmit = () => {
-        setUpdateTrigger(t => t + 1);
-    };
+    const handleApplyUpdate = async () => {
+        if (!pendingUpdate || !id) return;
 
-    const handleDeleteContent = async () => {
-        if (!id) return;
-        await deleteChaptersContent(id);
-        navigate(`/`);
+        setItems(pendingUpdate.items);
+        // Optional: Do we want to overwrite user's current position if they have moved since load?
+        // Maybe yes, maybe no. The server data has the "saved" position. 
+        // If user has been reading the cached version, their local state might be ahead/different.
+        // Let's NOT overwrite position if they are already reading, unless they want to sync to server.
+        // But the prompt implies "New version", usually content. 
+        // Let's just update content and save to cache.
+
+        await saveChaptersContent(id, pendingUpdate.items);
+        // We do NOT overwrite selectedItem/sentenceIndex with server values here 
+        // to avoid jumping user around if they started reading.
+
+        saveSelectedChapter(id, selectedItem);
+        saveSentenceIndex(id, sentenceIndex);
+
+        setPendingUpdate(null);
+        alert("Content updated!");
     };
 
     // ------- Refs for Event Handlers -------
@@ -390,7 +447,7 @@ const ReaderMain: React.FC = () => {
             className="d-flex flex-column p-0 m-0"
             style={{
                 flexGrow: 1,
-                height: "100%",
+                height: "100vh",
                 width: "100vw",
                 backgroundColor: color1,
             }}
@@ -400,6 +457,27 @@ const ReaderMain: React.FC = () => {
                     Offline Mode: Showing cached content.
                 </Alert>
             )}
+            {pendingUpdate && (
+                <Alert variant="info" className="m-0 rounded-0 text-center">
+                    New version available from server.
+                    <button className="btn btn-sm btn-outline-primary ms-2" onClick={handleApplyUpdate}>Update Now</button>
+                    <button className="btn btn-sm btn-link ms-2" onClick={() => setPendingUpdate(null)}>Dismiss</button>
+                </Alert>
+            )}
+
+            <div
+                ref={contentRef}
+                style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
+            >
+                <ChapterContent
+                    text={content}
+                    highlightIndex={sentenceIndex}
+                    playerStatus={playerStatus}
+                    fontSize={fontSize}
+                    fontFamily={fontFamily}
+                />
+            </div>
+
             <ChapterList
                 items={items}
                 onSelect={onChapterSelect}
@@ -407,6 +485,7 @@ const ReaderMain: React.FC = () => {
                 toggleCollapse={toggleCollapse}
                 selectedId={selectedItem}
             />
+
             <PlayersControl
                 selectedId={selectedItem}
                 totalChapters={items.length}
@@ -420,20 +499,34 @@ const ReaderMain: React.FC = () => {
                 onBackForward={onBackForward}
                 onSpeedChange={onSpeedChange}
                 onToggleChapters={toggleCollapse}
+                onOpenSettings={() => setShowSettings(true)}
             />
-            <VoiceSelector
+            <ReaderSettings
+                show={showSettings}
+                onHide={() => setShowSettings(false)}
                 id={id || ''}
                 voices={voices}
                 selectedVoice={selectedVoice}
                 onChangeVoice={onVoiceChange}
-                selectedChapter={selectedChapter.name}
-                handlePopupSubmit={handlePopupSubmit}
-                onDeleteContent={handleDeleteContent}
-            />
-            <ChapterContent
-                text={content}
-                highlightIndex={sentenceIndex}
-                playerStatus={playerStatus}
+                speed={speed}
+                onSpeedChange={onSpeedChange}
+                onDeleteContent={() => {
+                    if (id && window.confirm("Are you sure you want to delete the offline cache for this book?")) {
+                        deleteChaptersContent(id);
+                        window.location.reload();
+                    }
+                }}
+                onReplacementsSaved={() => setUpdateTrigger(prev => prev + 1)}
+                fontSize={fontSize}
+                onFontSizeChange={(s) => {
+                    setFontSize(s);
+                    saveFontSize(s);
+                }}
+                fontFamily={fontFamily}
+                onFontFamilyChange={(f) => {
+                    setFontFamily(f);
+                    saveFontFamily(f);
+                }}
             />
         </Container>
     );
