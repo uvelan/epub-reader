@@ -1,4 +1,4 @@
-import React, {useState, useMemo, useEffect} from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import UploadModal from './UploadModal';
 import { useNavigate } from "react-router-dom";
 import { saveBooksToDB, getBooksFromDB, clearBooksFromDB } from '../utils/db';
@@ -11,9 +11,10 @@ import {
     Form,
     InputGroup,
     Pagination,
+    Alert,
 } from 'react-bootstrap';
 import BookCard from './BookCard';
-import {Book} from "../types";
+import { Book } from "../types";
 const baseUrl = process.env.REACT_APP_API_BASE_URL;
 
 
@@ -22,24 +23,41 @@ const BookDashboard: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isOfflineMode, setIsOfflineMode] = useState(false);
     const navigate = useNavigate();
     const handleOnSuccess = () => {
         navigate(`/`);
     };
     useEffect(() => {
         const loadBooks = async () => {
-            const cached = await getBooksFromDB();
-            if (cached.length > 0) {
-                setBooks(cached);
-            }
-
+            setLoading(true);
             try {
+                const cached = await getBooksFromDB();
+                if (cached.length > 0) {
+                    setBooks(cached);
+                }
+
                 const res = await fetch(`${baseUrl}/epub`);
+                if (!res.ok) throw new Error('Failed to fetch books');
                 const data = await res.json();
                 setBooks(data);
                 await saveBooksToDB(data);
+                setError(null);
+                setIsOfflineMode(false);
             } catch (err) {
                 console.error("Failed to fetch from server", err);
+                const cached = await getBooksFromDB();
+                if (cached.length > 0) {
+                    setBooks(cached);
+                    setIsOfflineMode(true);
+                    setError(null);
+                } else if (books.length === 0) {
+                    setError("Failed to load books. Please check your connection.");
+                }
+            } finally {
+                setLoading(false);
             }
         };
 
@@ -83,78 +101,97 @@ const BookDashboard: React.FC = () => {
 
     return (
         <>
-        <Container className="py-4">
-            <Row className="mb-3 align-items-center">
-                <Col xs={12} md={6}>
-                    <h2 className="mb-0">Book Dashboard</h2>
-                </Col>
-                <Col xs={12} md={6} className="d-flex justify-content-md-end gap-2 mt-2 mt-md-0">
-                    <Button onClick={() => setShowUploadModal(true)}>Add Book</Button>
-                    <Button
-                        variant="outline-danger"
-                        onClick={async () => {
-                            await clearBooksFromDB();
-                            alert("Cache cleared!");
-                        }}
-                    >
-                        Clear Cache
-                    </Button>
-                </Col>
-            </Row>
-
-
-            <Row className="mb-3">
-                <Col md={6}>
-                    <InputGroup>
-                        <Form.Control
-                            type="text"
-                            placeholder="Search by title or author..."
-                            value={searchTerm}
-                            onChange={(e) => {
-                                setSearchTerm(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                        />
-                    </InputGroup>
-                </Col>
-            </Row>
-
-            <Row xs={1} sm={2} md={3} className="g-4">
-                {currentBooks.length > 0 ? (
-                    currentBooks.map((book) => (
-                        <Col key={book.id}>
-                            <BookCard book={book} onDelete={handleDelete} />
-                        </Col>
-                    ))
-                ) : (
-                    <Col>
-                        <p className="text-center">No books found.</p>
+            <Container className="py-4">
+                <Row className="mb-3 align-items-center">
+                    <Col xs={12} md={6}>
+                        <h2 className="mb-0">Book Dashboard</h2>
                     </Col>
-                )}
-            </Row>
-
-            {totalPages > 1 && (
-                <Pagination className="justify-content-center mt-4">
-                    <Pagination.Prev onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} />
-                    {Array.from({ length: totalPages }, (_, i) => (
-                        <Pagination.Item
-                            key={i + 1}
-                            active={i + 1 === currentPage}
-                            onClick={() => handlePageChange(i + 1)}
+                    <Col xs={12} md={6} className="d-flex justify-content-md-end gap-2 mt-2 mt-md-0">
+                        <Button onClick={() => setShowUploadModal(true)}>Add Book</Button>
+                        <Button
+                            variant="outline-danger"
+                            onClick={async () => {
+                                await clearBooksFromDB();
+                                alert("Cache cleared!");
+                            }}
                         >
-                            {i + 1}
-                        </Pagination.Item>
-                    ))}
-                    <Pagination.Next onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} />
-                </Pagination>
-            )}
-        </Container>
+                            Clear Cache
+                        </Button>
+                    </Col>
+                </Row>
+
+
+                <Row className="mb-3">
+                    <Col md={6}>
+                        <InputGroup>
+                            <Form.Control
+                                type="text"
+                                placeholder="Search by title or author..."
+                                value={searchTerm}
+                                onChange={(e) => {
+                                    setSearchTerm(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                            />
+                        </InputGroup>
+                    </Col>
+                </Row>
+
+                {isOfflineMode && (
+                    <Alert variant="warning" dismissible onClose={() => setIsOfflineMode(false)} className="mb-4">
+                        Offline Mode: Showing cached books. Some actions may be unavailable.
+                    </Alert>
+                )}
+
+                {loading && books.length === 0 ? (
+                    <div className="text-center py-5">
+                        <div className="spinner-border text-primary" role="status">
+                            <span className="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                ) : error ? (
+                    <div className="text-center py-5 text-danger">
+                        <p>{error}</p>
+                        <Button variant="outline-primary" onClick={() => window.location.reload()}>Retry</Button>
+                    </div>
+                ) : (
+                    <Row xs={1} sm={2} md={3} className="g-4">
+                        {currentBooks.length > 0 ? (
+                            currentBooks.map((book) => (
+                                <Col key={book.id}>
+                                    <BookCard book={book} onDelete={handleDelete} />
+                                </Col>
+                            ))
+                        ) : (
+                            <Col xs={12}>
+                                <p className="text-center text-muted">No books found matching your search.</p>
+                            </Col>
+                        )}
+                    </Row>
+                )}
+
+                {totalPages > 1 && (
+                    <Pagination className="justify-content-center mt-4">
+                        <Pagination.Prev onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} />
+                        {Array.from({ length: totalPages }, (_, i) => (
+                            <Pagination.Item
+                                key={i + 1}
+                                active={i + 1 === currentPage}
+                                onClick={() => handlePageChange(i + 1)}
+                            >
+                                {i + 1}
+                            </Pagination.Item>
+                        ))}
+                        <Pagination.Next onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} />
+                    </Pagination>
+                )}
+            </Container>
             <UploadModal
                 show={showUploadModal}
                 onHide={() => setShowUploadModal(false)}
                 onSuccess={handleOnSuccess}
             />
-            </>
+        </>
     );
 };
 

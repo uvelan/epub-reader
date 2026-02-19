@@ -1,5 +1,5 @@
 import { openDB } from 'idb';
-import { get, set , del } from 'idb-keyval';
+import { get, set, del } from 'idb-keyval';
 
 const READER_PREFIX = "reader-";
 const DB_NAME = 'BookDB';
@@ -62,12 +62,12 @@ export function getSentenceIndex(bookId: string): number | null {
     return val !== null && !isNaN(parseInt(val, 10)) ? parseInt(val, 10) : null;
 }
 
-export function saveSelectedVoice(voiceURI: string) {
-    localStorage.setItem("reader-selectedVoice", voiceURI);
+export function saveSelectedVoice(bookId: string, voiceURI: string) {
+    localStorage.setItem(`${READER_PREFIX}${bookId}-selectedVoice`, voiceURI);
 }
 
-export function getSelectedVoice(): string | null {
-    return localStorage.getItem("reader-selectedVoice");
+export function getSelectedVoice(bookId: string): string | null {
+    return localStorage.getItem(`${READER_PREFIX}${bookId}-selectedVoice`);
 }
 
 export async function deleteChaptersContent(bookId: string) {

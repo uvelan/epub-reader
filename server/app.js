@@ -7,6 +7,7 @@ const cors = require('cors');
 // const epub = require("./routes/getEpub");
 const epubUploadRoutes = require('./routes/epubUploadRoutes');
 const epubDetails = require('./routes/getDetailsEpubRoutes');
+const webScraperRoutes = require('./routes/WebScraperRoute');
 
 const path = require('path');
 
@@ -32,7 +33,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/upload', epubUploadRoutes);
-app.use('/epub/',epubDetails);
+app.use('/api/upload', epubUploadRoutes);
+app.use('/epub/', epubDetails);
+app.use('/api/scrape', webScraperRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

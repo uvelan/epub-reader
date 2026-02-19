@@ -1,7 +1,7 @@
-import React, {useCallback, useEffect, useRef, useState} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from 'react-router-dom';
 import axios from "axios";
-import { Container } from "react-bootstrap";
+import { Container, Alert } from "react-bootstrap";
 import ChapterList from "./ChapterList";
 import PlayersControl from "./PlayersControl";
 import VoiceSelector from "./VoiceSelector";
@@ -69,237 +69,213 @@ const ReaderMain: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const ttsRef = useRef(new TextToSpeech());
     const [updateTrigger, setUpdateTrigger] = useState<number>(0);
+    const [isOfflineMode, setIsOfflineMode] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [content, setContent] = useState<string[]>([]);
     const navigate = useNavigate();
 
     // Fetch chapters content and restore state
     useEffect(() => {
         const fetchChapters = async () => {
+            if (!id) return;
             setLoading(true);
+            setError(null);
+            setIsOfflineMode(false);
             try {
-                let chapters: Item[] = [];
-                const storedContent = await getChaptersContent(id || "");
-                if (storedContent && Array.isArray(storedContent)) {
-                    chapters = storedContent;
-                    setItems(chapters);
+                // Network First: Try to fetch from API
+                const res = await axios.get(`${baseUrl}/epub/${id}`);
+                const chapters = (res.data.content || []).sort((a: Item, b: Item) => a.id - b.id);
+                setItems(chapters);
 
-                    // Clamp indices loaded from storage
-                    let sel = selectedItem;
-                    if (sel < 0 || sel >= chapters.length) sel = 0;
-                    setSelectedItem(sel);
+                // Sync progress from server
+                const sel = Math.max(0, Math.min(res.data.chapterid || 0, chapters.length - 1));
+                setSelectedItem(sel);
 
-                    let sent = sentenceIndex;
-                    const maxSent = chapters[sel]?.content.length || 0;
-                    if (sent < 0 || sent >= maxSent) sent = 0;
-                    setSentenceIndex(sent);
+                const sentenceMax = chapters[sel]?.content.length || 0;
+                const sent = Math.max(0, Math.min(res.data.sentenceid || 0, sentenceMax - 1));
+                setSentenceIndex(sent);
 
-                } else {
-                    // Fetch fresh from API, use API’s progress to override stored state
-                    const res = await axios.get(`${baseUrl}/epub/${id}`);
-                    chapters = (res.data.content || []).sort((a: Item, b: Item) => a.id - b.id);
-                    setItems(chapters);
+                // Update cache
+                await saveChaptersContent(id, chapters);
+                saveSelectedChapter(id, sel);
+                saveSentenceIndex(id, sent);
 
-                    const sel = Math.max(0, Math.min(res.data.chapterid || 0, chapters.length - 1));
-                    setSelectedItem(sel);
-
-                    const sentenceMax = chapters[sel]?.content.length || 0;
-                    const sent = Math.max(0, Math.min(res.data.sentenceid || 0, sentenceMax - 1));
-                    setSentenceIndex(sent);
-
-                    // Cache data and update storage
-                    await saveChaptersContent(id || "", chapters);
-                    saveSelectedChapter(id || "", sel);
-                    saveSentenceIndex(id || "", sent);
-                }
             } catch (err) {
-                console.error("Failed to fetch chapters:", err);
+                console.error("Failed to fetch from API, attempting cache fallback:", err);
+                try {
+                    const storedContent = await getChaptersContent(id);
+                    if (storedContent && Array.isArray(storedContent) && storedContent.length > 0) {
+                        console.log("Loaded chapters from cache");
+                        setItems(storedContent);
+                        setIsOfflineMode(true);
+
+                        // Validate current selection
+                        setSelectedItem(prev => {
+                            if (prev < 0 || prev >= storedContent.length) return 0;
+                            return prev;
+                        });
+                    } else {
+                        throw new Error("No content available offline");
+                    }
+                } catch (cacheErr) {
+                    console.error("Failed to load from cache:", cacheErr);
+                    setError("Failed to load book content. Please check your connection.");
+                }
             } finally {
                 setLoading(false);
             }
         };
 
-        if (id) fetchChapters();
+        fetchChapters();
         // eslint-disable-next-line
     }, [id]);
 
-    // Validate selectedItem if chapters change
+    // Process text when chapter or ID changes
     useEffect(() => {
-        if (items.length && (selectedItem < 0 || selectedItem >= items.length)) {
-            setSelectedItem(0);
-        }
-        // eslint-disable-next-line
-    }, [items]);
+        if (!id || !items[selectedItem]) return;
+        const rawContent = items[selectedItem].content;
+        const processed = processTextWithReplacements(id, rawContent);
+        setContent(processed);
+    }, [id, selectedItem, items, updateTrigger]);
 
-    // Validate sentenceIndex when chapter changes
-    useEffect(() => {
-        const max = items[selectedItem]?.content.length || 0;
-        if (sentenceIndex < 0 || sentenceIndex >= max) {
-            setSentenceIndex(0);
-        }
-        // eslint-disable-next-line
-    }, [selectedItem, items]);
+    // Voices handling
+    const loadVoices = useCallback(() => {
+        const synthVoices = window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
+        if (synthVoices.length > 0) {
+            setVoices(synthVoices);
 
-    // Sync selectedItem to localStorage on change
-    useEffect(() => {
-        if (id) saveSelectedChapter(id, selectedItem);
-    }, [selectedItem, id]);
+            let savedVoice = id ? getSelectedVoice(id) : null;
+            // Ensure saved voice is still valid (exists in our filtered list)
+            const found = synthVoices.find(v => v.voiceURI === savedVoice);
 
-    // Sync sentenceIndex to localStorage on change
-    useEffect(() => {
-        if (id) saveSentenceIndex(id, sentenceIndex);
-    }, [sentenceIndex, id]);
-
-    // Load available voices and saved voice selection
-    useEffect(() => {
-        const loadVoices = () => {
-            const synthVoices = window.speechSynthesis.getVoices();
-            if (synthVoices.length > 0) {
-                setVoices(synthVoices);
-
-                let savedVoice = getSelectedVoice();
-                if (!savedVoice && synthVoices[0]) savedVoice = synthVoices[0].voiceURI;
-
-                const found = synthVoices.find(v => v.voiceURI === savedVoice);
-                const voiceToUse = found?.voiceURI || synthVoices[0].voiceURI;
-                setSelectedVoice(voiceToUse);
-                ttsRef.current.setVoice(voiceToUse);
+            if (!found && synthVoices[0]) {
+                savedVoice = synthVoices[0].voiceURI;
+            } else if (found) {
+                savedVoice = found.voiceURI;
             }
-        };
+
+            if (savedVoice) {
+                setSelectedVoice(savedVoice);
+                ttsRef.current.setVoice(savedVoice);
+            }
+        }
+    }, [id]);
+
+    useEffect(() => {
         loadVoices();
         window.speechSynthesis.onvoiceschanged = loadVoices;
-
         return () => {
             window.speechSynthesis.onvoiceschanged = null;
         };
-    }, []);
+    }, [loadVoices]);
 
-    useEffect(() => {
-        if (selectedVoice) {
-            ttsRef.current.setVoice(selectedVoice);
-            saveSelectedVoice(selectedVoice);
-        }
-    }, [selectedVoice]);
 
-    // On chapter change, reset sentence and stop player
-    useEffect(() => {
-        setSentenceIndex(0);
-    }, [selectedItem]);
+    const play = useCallback((index: number) => {
+        if (!content || !content[index]) return;
 
-    // Process text content with replacements
-    useEffect(() => {
-        if (items[selectedItem]?.content) {
-            setContent(processTextWithReplacements(id || "", items[selectedItem].content));
-        } else {
-            setContent([]);
-        }
-        // eslint-disable-next-line
-    }, [items, selectedItem, updateTrigger, id]);
+        ttsRef.current.stop();
+        setPlayerStatus(1);
 
-    // Speak current sentence when playerStatus is playing and sentenceIndex changes
-    useEffect(() => {
-        if (playerStatus === 1 && content.length > 0 && sentenceIndex < content.length) {
-            speak();
-        }
-        // eslint-disable-next-line
-    }, [sentenceIndex, playerStatus, selectedItem, content]);
-
-    // Setup speech rate and onEnd handler; clean up on unmount
-    useEffect(() => {
-        ttsRef.current.setRate(speed);
         ttsRef.current.onEnd = () => {
-            if (playerStatus === 1 && sentenceIndex < content.length - 1) {
-                setSentenceIndex(prev => prev + 1);
-            } else if (playerStatus === 1 && sentenceIndex === content.length - 1) {
-                onNext();
+            if (index < content.length - 1) {
+                setSentenceIndex(index + 1);
+            } else {
+                // End of chapter
+                if (selectedItem < items.length - 1) {
+                    setSelectedItem(s => s + 1);
+                    setSentenceIndex(0);
+                } else {
+                    setPlayerStatus(0);
+                }
             }
         };
-        return () => {
-            ttsRef.current.onEnd = null;
-        };
-        // eslint-disable-next-line
-    }, [speed, playerStatus, sentenceIndex, selectedItem, content]);
 
+        ttsRef.current.speak(content[index]);
+    }, [content, selectedItem, items.length]);
 
-    // ------- Handlers -------
-    const toggleCollapse = () => setCollapsed(prev => !prev);
-
-    const onVoiceChange = (val: string) => {
-        setSelectedVoice(val);
-        ttsRef.current.setVoice(val);
-        saveSelectedVoice(val);
-    };
-
-    const speak = () => {
-        const currentSentence = content?.[sentenceIndex];
-        if (!currentSentence) return;
-
-        if (ttsRef.current.isPaused()) {
-            ttsRef.current.resume();
-            return;
+    // Effect to auto-play when sentenceIndex changes IF valid and playing
+    useEffect(() => {
+        if (playerStatus === 1) {
+            play(sentenceIndex);
         }
+        // Save progress
+        if (id) {
+            saveSentenceIndex(id, sentenceIndex);
+            saveProgress(id, selectedItem, sentenceIndex);
+        }
+    }, [sentenceIndex, playerStatus, play, id, selectedItem]);
 
-        ttsRef.current.speak(currentSentence);
+    // Stop function
+    const onStop = () => {
+        ttsRef.current.stop();
+        setPlayerStatus(0);
     };
 
     const onPlayPause = () => {
         if (playerStatus === 1) {
-            setPlayerStatus(2);
             ttsRef.current.pause();
+            setPlayerStatus(2); // Paused
         } else if (playerStatus === 2) {
-            setPlayerStatus(1);
             ttsRef.current.resume();
-        } else {
             setPlayerStatus(1);
-            speak();
+        } else {
+            play(sentenceIndex);
         }
-        if (id) saveProgress(id, selectedItem, sentenceIndex);
     };
 
-    const onStop = () => {
-        ttsRef.current.stop();
-        setPlayerStatus(0);
-        if (id) saveProgress(id, selectedItem, sentenceIndex);
-    };
-
+    // Navigation
     const onNext = () => {
         if (selectedItem < items.length - 1) {
-            setSelectedItem(prev => prev + 1);
-        } else {
-            setPlayerStatus(0);
+            setSelectedItem(s => s + 1);
+            setSentenceIndex(0);
         }
     };
 
     const onPrevious = () => {
         if (selectedItem > 0) {
-            setSelectedItem(prev => prev - 1);
+            setSelectedItem(s => s - 1);
+            setSentenceIndex(0);
         }
-    };
-
-    const onChapterSelect = (selectId: number) => {
-        setSelectedItem(selectId);
-        setSentenceIndex(0);
-        setPlayerStatus(0);
     };
 
     const onForward = () => {
         if (content && sentenceIndex < content.length - 1) {
-            setSentenceIndex(prev => prev + 1);
+            setSentenceIndex(s => s + 1);
         }
     };
 
     const onBackForward = () => {
         if (sentenceIndex > 0) {
-            setSentenceIndex(prev => prev - 1);
+            setSentenceIndex(s => s - 1);
         }
     };
 
-    const onSpeedChange = (val: number) => {
-        ttsRef.current.setRate(val);
-        setSpeed(val);
+    // Settings
+    const onSpeedChange = (newSpeed: number) => {
+        setSpeed(newSpeed);
+        ttsRef.current.setRate(newSpeed);
+    };
+
+    const onVoiceChange = (voiceURI: string) => {
+        setSelectedVoice(voiceURI);
+        ttsRef.current.setVoice(voiceURI);
+        if (id) saveSelectedVoice(id, voiceURI);
+        // If speaking, restart with new voice
+        if (playerStatus === 1) {
+            play(sentenceIndex);
+        }
+    };
+
+    const toggleCollapse = () => setCollapsed(!collapsed);
+
+    const onChapterSelect = (chapterId: number) => {
+        setSelectedItem(chapterId);
+        setSentenceIndex(0);
+        if (id) saveSelectedChapter(id, chapterId);
     };
 
     const handlePopupSubmit = () => {
-        setUpdateTrigger(prev => prev + 1);
+        setUpdateTrigger(t => t + 1);
     };
 
     const handleDeleteContent = async () => {
@@ -308,11 +284,34 @@ const ReaderMain: React.FC = () => {
         navigate(`/`);
     };
 
+    // ------- Refs for Event Handlers -------
+    // We use refs to hold the latest version of handlers so the window 'keydown' listener
+    // doesn't need to be removed/added on every render/state change.
+    const handlersRef = useRef({
+        onPlayPause: () => { },
+        onBackForward: () => { },
+        onForward: () => { },
+        onPrevious: () => { },
+        onNext: () => { },
+    });
+
+    // Update refs whenever handlers change
+    useEffect(() => {
+        handlersRef.current = {
+            onPlayPause,
+            onBackForward,
+            onForward,
+            onPrevious,
+            onNext,
+        };
+    });
+
     const handleKeyDown = useCallback(
         (event: KeyboardEvent) => {
             // Don't trigger shortcuts if user is focused on an input, textarea, or editable element
-            const tagName = (event.target as HTMLElement).tagName.toLowerCase();
-            const isEditable = (event.target as HTMLElement).isContentEditable;
+            const target = event.target as HTMLElement;
+            const tagName = target.tagName.toLowerCase();
+            const isEditable = target.isContentEditable;
             if (tagName === "input" || tagName === "textarea" || isEditable) {
                 return;
             }
@@ -320,31 +319,31 @@ const ReaderMain: React.FC = () => {
             switch (event.code) {
                 case "Space":
                     event.preventDefault();
-                    onPlayPause();
+                    handlersRef.current.onPlayPause();
                     break;
                 case "ArrowUp":
                     event.preventDefault();
-                    onBackForward(); // rewind 1 sentence backward
+                    handlersRef.current.onBackForward();
                     break;
                 case "ArrowDown":
                     event.preventDefault();
-                    onForward(); // forward 1 sentence
+                    handlersRef.current.onForward();
                     break;
                 case "ArrowLeft":
                     event.preventDefault();
-                    onPrevious(); // previous chapter
+                    handlersRef.current.onPrevious();
                     break;
                 case "ArrowRight":
                     event.preventDefault();
-                    onNext(); // next chapter
+                    handlersRef.current.onNext();
                     break;
             }
         },
-        [onPlayPause, onBackForward, onForward, onPrevious, onNext]
+        [] // No dependencies, stable callback
     );
+
     useEffect(() => {
         window.addEventListener("keydown", handleKeyDown);
-
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
         };
@@ -365,6 +364,24 @@ const ReaderMain: React.FC = () => {
         );
     }
 
+    if (error) {
+        return (
+            <Container
+                className="d-flex justify-content-center align-items-center"
+                style={{ minHeight: "100vh", minWidth: "100vw", backgroundColor: color1 }}
+            >
+                <div className="text-center text-danger">
+                    <h3>Error</h3>
+                    <p>{error}</p>
+                    <div className="d-flex gap-3 justify-content-center">
+                        <button className="btn btn-primary" onClick={() => window.location.reload()}>Retry</button>
+                        <button className="btn btn-secondary" onClick={() => navigate('/')}>Back to Dashboard</button>
+                    </div>
+                </div>
+            </Container>
+        );
+    }
+
     const selectedChapter = items[selectedItem] || items[0] || { name: "" };
 
     return (
@@ -378,6 +395,11 @@ const ReaderMain: React.FC = () => {
                 backgroundColor: color1,
             }}
         >
+            {isOfflineMode && (
+                <Alert variant="warning" dismissible onClose={() => setIsOfflineMode(false)} className="m-0 rounded-0 text-center">
+                    Offline Mode: Showing cached content.
+                </Alert>
+            )}
             <ChapterList
                 items={items}
                 onSelect={onChapterSelect}

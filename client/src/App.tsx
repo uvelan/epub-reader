@@ -11,23 +11,16 @@ import ReaderMain from "./components/ReaderMain";
 
 const App: React.FC = () => {
   return (
-      <AuthProvider>
-        <Router>
-          <Routes>
-            <Route path="/login" element={<LoginForm />} />
-              <Route path="/book/:id" element={<ReaderMain />} />
-            <Route
-                path="/dashboard"
-                element={
-                  // <PrivateRoute>
-                    <BookDashboard />
-                  // </PrivateRoute>
-                }
-            />
-            <Route path="/" element={<Navigate to="/dashboard" />} />
-          </Routes>
-        </Router>
-      </AuthProvider>
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<LoginForm />} />
+          <Route path="/book/:id" element={<ReaderMain />} />
+          <Route path="/dashboard" element={<BookDashboard />} />
+          <Route path="/" element={<Navigate to="/dashboard" />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 };
 

@@ -1,53 +1,66 @@
 export class TextToSpeech {
-    private utterance: SpeechSynthesisUtterance;
     private synthesis: SpeechSynthesis;
     private isSpeaking = false;
     public onEnd: (() => void) | null = null;
 
+    private currentUtterance: SpeechSynthesisUtterance | null = null;
+    private selectedVoice: SpeechSynthesisVoice | null = null;
 
     constructor(
         private voiceLang = 'en-US',
         private rate = 1.0
     ) {
         this.synthesis = window.speechSynthesis;
-        this.utterance = new SpeechSynthesisUtterance();
-        this.utterance.lang = this.voiceLang;
-        this.utterance.rate = this.rate;
-
-        this.utterance.onend = () => {
-            this.isSpeaking = false;
-        };
     }
 
     setRate(rate: number) {
         this.rate = rate;
-        this.utterance.rate = rate;
+        // Note: Changing rate mid-speech typically requires restarting in many browsers.
+        // For now, this just updates the rate for the *next* utterance.
     }
 
     setVoiceLanguage(lang: string) {
         this.voiceLang = lang;
-        this.utterance.lang = lang;
+    }
+
+    setVoice(URI: string) {
+        const voices = this.synthesis.getVoices();
+        const voice = voices.find(v => v.voiceURI === URI);
+        if (voice) {
+            this.selectedVoice = voice;
+        }
     }
 
     speak(text: string) {
-        if (this.isSpeaking) {
-            this.stop();
+        // Always stop previous speech before starting new
+        this.stop();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = this.rate;
+        utterance.lang = this.voiceLang;
+
+        if (this.selectedVoice) {
+            utterance.voice = this.selectedVoice;
         }
-        this.utterance.text = text;
-        this.utterance.onend = () => {
+
+        utterance.onend = () => {
+            this.isSpeaking = false;
+            // Important: keep reference until end to prevent GC
+            this.currentUtterance = null;
             if (this.onEnd) {
                 this.onEnd();
             }
         };
-        this.synthesis.speak(this.utterance);
+
+        utterance.onerror = (event) => {
+            console.error("TTS Error:", event);
+            this.isSpeaking = false;
+            this.currentUtterance = null;
+        };
+
+        this.currentUtterance = utterance;
+        this.synthesis.speak(utterance);
         this.isSpeaking = true;
-    }
-    setVoice(URI: string) {
-        const voices = window.speechSynthesis.getVoices();
-        const voice = voices.find(v => v.voiceURI === URI);
-        if (voice) {
-            this.utterance.voice = voice;
-        }
     }
 
     pause() {
@@ -63,9 +76,10 @@ export class TextToSpeech {
     }
 
     stop() {
-        if (this.synthesis.speaking || this.synthesis.paused) {
+        if (this.synthesis.speaking || this.synthesis.paused || this.isSpeaking) {
             this.synthesis.cancel();
             this.isSpeaking = false;
+            this.currentUtterance = null;
         }
     }
 
@@ -76,5 +90,4 @@ export class TextToSpeech {
     isPaused() {
         return this.synthesis.paused;
     }
-
 }
