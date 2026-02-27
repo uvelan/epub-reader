@@ -9,21 +9,21 @@ const { processEpub } = require('./epubProcessorEpub');
  * @param {string} filePath – absolute path of the temporary upload
  * @returns {Promise<string>} – the book’s UUID
  */
-const handleUploadEpub = async (filePath) => {    const tmpName = path.basename(filePath, path.extname(filePath)); // e.g. upload_123.epub → upload_123
+const handleUploadEpub = async (filePath) => {
+  const tmpName = path.basename(filePath, path.extname(filePath)); // e.g. upload_123.epub → upload_123
 
-    try {
-        // 1 — Extract metadata & chapters
-        const { title, cover, chapters, description } = await processEpub(filePath);
-        const id = title.trim().replace(/\s+/g, '_');
+  try {
+    // 1 — Extract metadata & chapters
+    const { title, cover, chapters, description } = await processEpub(filePath);
+    const id = title.trim().replace(/\s+/g, '_');
 
-        // 2 — UPSERT into Postgres (content stored as JSONB)
-        await sql`
-      INSERT INTO books (id, title, cover, content, description)
+    // 2 — UPSERT into Postgres (content stored as JSONB for books is now null/omitted)
+    await sql`
+      INSERT INTO books (id, title, cover, description)
       VALUES (
         ${id},
         ${title},
         ${cover},
-        ${JSON.stringify(chapters)},
         ${description}
       )
       ON CONFLICT (id) DO UPDATE
@@ -31,11 +31,33 @@ const handleUploadEpub = async (filePath) => {    const tmpName = path.basename(
             cover       = EXCLUDED.cover,
             description = EXCLUDED.description;
     `;
-        await fs.unlink(filePath);
-        return id;
-    } catch (err) {
-        await fs.unlink(filePath).catch(() => {}); // ensure file is removed even on failure
-        throw err;
+
+    // 3 — REPLACE chapters
+    // First delete existing chapters for this book (in case it's an update)
+    await sql`DELETE FROM chapters WHERE book_id = ${id}`;
+
+    // Then insert new chapters
+    if (chapters && chapters.length > 0) {
+      for (const chapter of chapters) {
+        // Ensure text fields and JSON don't break the query
+        await sql`
+                  INSERT INTO chapters (book_id, chapter_index, name, path, content)
+                  VALUES (
+                    ${id},
+                    ${chapter.id},
+                    ${chapter.name},
+                    ${chapter.path},
+                    ${JSON.stringify(chapter.content)}
+                  )
+                `;
+      }
     }
+
+    await fs.unlink(filePath);
+    return id;
+  } catch (err) {
+    await fs.unlink(filePath).catch(() => { }); // ensure file is removed even on failure
+    throw err;
+  }
 };
 module.exports = { handleUploadEpub };

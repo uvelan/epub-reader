@@ -27,13 +27,26 @@ router.get('/', async (_req, res) => {
 router.get('/:id', async (req, res) => {
     try {
         const [row] = await sql`
-      SELECT content, chapterId, sentenceId
+      SELECT id, title, cover, description, content, chapterId, sentenceId
       FROM books
       WHERE id = ${req.params.id}
       LIMIT 1;
     `;
 
         if (!row) return res.status(404).json({ error: 'Not found' });
+
+        // Fetch associated chapters
+        const chapters = await sql`
+            SELECT chapter_index as id, name, path, content
+            FROM chapters
+            WHERE book_id = ${req.params.id}
+            ORDER BY chapter_index ASC;
+        `;
+
+        // Either use the chapters table or fallback to the old JSON content for backward compatibility
+        row.content = chapters.length > 0 ? chapters : row.content;
+
+        // Ensure we send back an object with a flat content array for backward compatibility
         res.json(row);
     } catch (err) {
         console.error(err);

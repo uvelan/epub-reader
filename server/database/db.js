@@ -24,13 +24,27 @@ async function createTables() {
         id          TEXT PRIMARY KEY,  -- or TEXT if you prefer
         title       TEXT NOT NULL,
         cover       TEXT,
-        content     JSONB NOT NULL,
+        content     JSONB,
         description TEXT,
         chapterId  INT DEFAULT  0,
         sentenceId INT DEFAULT 0     
       );
     `);
     console.log("Books table created or already exists.");
+
+    // 3️⃣ chapters -------------------------------------------------------------
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chapters (
+        id            SERIAL PRIMARY KEY,
+        book_id       TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+        chapter_index INT NOT NULL,
+        name          TEXT,
+        path          TEXT,
+        content       JSONB,
+        UNIQUE(book_id, chapter_index)
+      );
+    `);
+    console.log("Chapters table created or already exists.");
   } catch (err) {
     console.error("Error creating tables", err);
   }
@@ -48,7 +62,7 @@ const sql = async (strings, ...values) => {
   }
 
   // Tagged template literal support
-  const query = strings.reduce((acc, str, i) => acc + str + (i < values.length ? `$${i + 1}` : ''), '');
+  const query = strings.reduce((acc, str, i) => acc + str + (i < values.length ? `$${i + 1} ` : ''), '');
   const res = await pool.query(query, values);
   return res.rows;
 };
